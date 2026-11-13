@@ -142,6 +142,9 @@ pub fn reconcile(parsed: &[Parsed], own_numbers: &[String]) -> Vec<Txn> {
         }
     }
 
+    // After pairing, which relies on messages naming the bank.
+    name_bank_accounts(&mut txns);
+
     // A loan payout lands as a plain credit next to the loan message.
     for i in 0..txns.len() {
         if txns[i].kind != Kind::LoanDraw {
@@ -203,6 +206,47 @@ fn merge_split_fees(txns: &mut Vec<Txn>) {
                 }
             }
             None => i += 1,
+        }
+    }
+}
+
+/// Which bank an account number belongs to, from how a message describes it.
+fn bank_of(t: &Txn) -> Option<&'static str> {
+    let named = |s: &Option<String>| s.as_deref().map(str::to_lowercase).unwrap_or_default();
+    let (who, what) = (named(&t.counterparty), named(&t.description));
+    if t.source == "cbe" || who.contains("commercial bank of ethiopia") || what.contains("commercial bank of ethiopia") {
+        Some("CBE")
+    } else {
+        None
+    }
+}
+
+/// A telebirr transfer to a bank says only "to Commercial Bank of Ethiopia
+/// account number …0366". When the same account shows up elsewhere with a
+/// name (money from it at CBE, a Zemen transfer to it), use that name, so
+/// the transfer reads "Mahlet Kebede" rather than the bank's name.
+fn name_bank_accounts(txns: &mut [Txn]) {
+    use std::collections::HashMap;
+    let mut names: HashMap<(&'static str, String), String> = HashMap::new();
+    for t in txns.iter() {
+        let (Some(bank), Some(acct), Some(name)) = (bank_of(t), &t.counterparty_account, &t.counterparty) else { continue };
+        // People, not the bank itself or a company settlement account.
+        let n = name.to_lowercase();
+        if !n.contains("bank") && !n.contains("account") && n != "telebirr" {
+            names.entry((bank, acct.clone())).or_insert_with(|| name.trim_start_matches("Miss ").trim_start_matches("Mr ").to_string());
+        }
+    }
+    for t in txns.iter_mut() {
+        let Some(bank) = bank_of(t) else { continue };
+        let Some(acct) = t.counterparty_account.clone() else { continue };
+        // Only a message that names just the bank ("Commercial Bank of
+        // Ethiopia"); "Air Time Sales-mobile Banking" is a real recipient.
+        let is_bank_name = t.counterparty.as_deref().is_some_and(|c| c.trim().eq_ignore_ascii_case("commercial bank of ethiopia"));
+        if let (true, Some(name)) = (is_bank_name, names.get(&(bank, acct.clone()))) {
+            t.counterparty = Some(name.clone());
+            if t.description.is_none() {
+                t.description = Some(format!("{bank} {acct}"));
+            }
         }
     }
 }
@@ -377,6 +421,36 @@ mod tests {
         let mut inn = p("cbe", Kind::TransferIn, 3000000, "18:29:06");
         inn.counterparty = Some("NATIONAL BANK OF ETHIOPIA".into());
         assert_eq!(reconcile(&[out, inn], &own())[1].flow, Flow::Income);
+    }
+
+    #[test]
+    fn bank_account_gets_the_name_seen_elsewhere() {
+        // Money from Mahlet's CBE account names it; a telebirr transfer to
+        // the same account then reads as a transfer to her.
+        let mut from_her = p("cbe", Kind::TransferIn, 300000, "09:00:00");
+        from_her.counterparty = Some("Mahlet Kebede Tesfaye".into());
+        from_her.counterparty_account = Some("****0366".into());
+        let mut to_her = p("telebirr", Kind::TransferOut, 50000, "09:22:30");
+        to_her.counterparty = Some("Commercial Bank of Ethiopia".into());
+        to_her.counterparty_account = Some("****0366".into());
+        let mut someone_else = p("telebirr", Kind::TransferOut, 7000, "07:17:00");
+        someone_else.counterparty = Some("Commercial Bank of Ethiopia".into());
+        someone_else.counterparty_account = Some("****9999".into());
+        // A merchant whose name merely contains "Banking", sharing the last
+        // four digits with a settlement account, keeps its own name.
+        let mut merchant = p("cbe", Kind::TransferOut, 3000, "08:24:00");
+        merchant.counterparty = Some("Air Time Sales-mobile Banking".into());
+        merchant.counterparty_account = Some("****0162".into());
+        let mut settlement = p("cbe", Kind::TransferOut, 3000, "08:30:00");
+        settlement.counterparty = Some("Yaya-wallet Settlement Account".into());
+        settlement.counterparty_account = Some("****0162".into());
+        let t = reconcile(&[from_her, to_her, someone_else, merchant, settlement], &own());
+        let by = |amount: i64| t.iter().find(|x| x.amount == amount && x.source != "cbe").unwrap();
+        assert_eq!(by(50000).counterparty.as_deref(), Some("Mahlet Kebede Tesfaye"));
+        assert_eq!(by(50000).description.as_deref(), Some("CBE ****0366"));
+        assert_eq!(by(7000).counterparty.as_deref(), Some("Commercial Bank of Ethiopia"), "unknown account keeps the bank");
+        let merchant = t.iter().find(|x| x.occurred_at.to_rfc3339().contains("08:24")).unwrap();
+        assert_eq!(merchant.counterparty.as_deref(), Some("Air Time Sales-mobile Banking"));
     }
 
     #[test]
