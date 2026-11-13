@@ -1,0 +1,383 @@
+# Bundled SMS rules. See src/parse.rs for how they're applied.
+#
+# Patterns match the message with all whitespace collapsed to single spaces.
+# {amount} {fee} {vat} {levy} {balance} {outstanding} are money groups.
+# Dates: telebirr writes 12/11/2026 18:16:12 in most messages but
+# 2026-11-12 13:17:08 in bank and credit ones.
+
+# ── telebirr (127) ──────────────────────────────────────────────────────────
+
+[[rule]]
+id = "telebirr.ignore.otp"
+source = "telebirr"
+senders = ["127"]
+kind = "ignore"
+pattern = 'Your verification code is'
+
+[[rule]]
+id = "telebirr.ignore.wrong_pin"
+source = "telebirr"
+senders = ["127"]
+kind = "ignore"
+pattern = 'your PIN or password is incorrect'
+
+[[rule]]
+id = "telebirr.ignore.insufficient_balance"
+source = "telebirr"
+senders = ["127"]
+kind = "ignore"
+pattern = 'You have insufficient balance for the requested transaction'
+
+# The receiving side of an airtime recharge; the recharge itself is the
+# transaction.
+[[rule]]
+id = "telebirr.ignore.airtime_received"
+source = "telebirr"
+senders = ["127"]
+kind = "ignore"
+priority = 100
+pattern = 'You have received ETB [\d,.]+ airtime from'
+
+[[rule]]
+id = "telebirr.fee.disaster_fund"
+source = "telebirr"
+senders = ["127"]
+kind = "fee"
+priority = 90
+pattern = 'You have paid ETB {amount} for (?P<description>Ethiopian Disaster Risk Management fund)'
+extract = ['Your current telebirr balance is ETB {balance}']
+
+[[rule]]
+id = "telebirr.package"
+source = "telebirr"
+senders = ["127"]
+kind = "package"
+priority = 80
+# Older messages leave the package name out: "for package purchase made for".
+pattern = 'You have paid ETB {amount} for package (?:(?P<description>.+?) )?purchase made for (?P<target_number>\d+) on (?P<date>\d\d/\d\d/\d{4} \d\d:\d\d:\d\d)'
+date_format = "%d/%m/%Y %H:%M:%S"
+extract = [
+  'Your transaction number is (?P<reference>\w+)',
+  'Your current balance is ETB {balance}',
+]
+
+# "for goods purchased to", "for Education payment to", "for Service Fee
+# from", "for Transport services to", …
+[[rule]]
+id = "telebirr.payment.merchant"
+source = "telebirr"
+senders = ["127"]
+kind = "payment"
+priority = 50
+pattern = 'You have paid ETB {amount} for (?P<description>.+?) (?:to|from) (?P<counterparty_account>\d+) - (?P<counterparty>.+?) on (?P<date>\d\d/\d\d/\d{4} \d\d:\d\d:\d\d)'
+date_format = "%d/%m/%Y %H:%M:%S"
+extract = [
+  'The service fee is ETB {fee} and 15% VAT on the service fee is ETB {vat}',
+  'Your transaction number is (?P<reference>\w+)',
+  'Your current balance is ETB {balance}',
+]
+
+[[rule]]
+id = "telebirr.airtime"
+source = "telebirr"
+senders = ["127"]
+kind = "airtime"
+priority = 60
+pattern = 'You have recharged ETB {amount} airtime for (?P<target_number>\d+) on (?P<date>\d\d/\d\d/\d{4} \d\d:\d\d:\d\d)'
+date_format = "%d/%m/%Y %H:%M:%S"
+extract = [
+  'Your transaction number is (?P<reference>\w+)',
+  'Your current balance is ETB {balance}',
+]
+
+[[rule]]
+id = "telebirr.transfer_out.bank"
+source = "telebirr"
+senders = ["127"]
+kind = "transfer_out"
+priority = 60
+pattern = 'You have transferred ETB {amount} successfully from your telebirr account \d+ to (?P<counterparty>.+?) account number (?P<counterparty_account>\d+) on (?P<date>\d\d/\d\d/\d{4} \d\d:\d\d:\d\d)'
+date_format = "%d/%m/%Y %H:%M:%S"
+extract = [
+  'Your telebirr transaction number is (?P<reference>\w+)',
+  'The service fee is ETB {fee} and 15% VAT on the service fee is ETB {vat}',
+  'Your current balance is ETB {balance}',
+]
+
+[[rule]]
+id = "telebirr.transfer_out.person"
+source = "telebirr"
+senders = ["127"]
+kind = "transfer_out"
+priority = 50
+pattern = 'You have transferred ETB {amount} to (?P<counterparty>[^(]+?) ?\((?P<counterparty_account>[\d*]+)\) on (?P<date>\d\d/\d\d/\d{4} \d\d:\d\d:\d\d)'
+date_format = "%d/%m/%Y %H:%M:%S"
+extract = [
+  'Your transaction number is (?P<reference>\w+)',
+  'The service fee is ETB {fee} and 15% VAT on the service fee is ETB {vat}',
+  'Your current E-Money Account balance is ETB {balance}',
+]
+
+[[rule]]
+id = "telebirr.transfer_in.bank"
+source = "telebirr"
+senders = ["127"]
+kind = "transfer_in"
+priority = 60
+pattern = 'You have received ETB {amount} by transaction number (?P<reference>\w+) on (?P<date>\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) from (?P<counterparty>.+?) to your telebirr Account'
+date_format = "%Y-%m-%d %H:%M:%S"
+extract = ['Your current balance is ETB {balance}']
+
+[[rule]]
+id = "telebirr.transfer_in.merchant"
+source = "telebirr"
+senders = ["127"]
+kind = "transfer_in"
+priority = 60
+pattern = 'You have received ETB {amount} from (?P<counterparty>.+?) - short code (?P<counterparty_account>\d+) on (?P<date>\d\d/\d\d/\d{4} \d\d:\d\d:\d\d)'
+date_format = "%d/%m/%Y %H:%M:%S"
+extract = [
+  'Your transaction number is (?P<reference>\w+)',
+  'Your current E-Money Account balance is ETB {balance}',
+]
+
+[[rule]]
+id = "telebirr.transfer_in.person"
+source = "telebirr"
+senders = ["127"]
+kind = "transfer_in"
+priority = 50
+pattern = 'You have received ETB {amount} from (?P<counterparty>[^(]+?) ?\((?P<counterparty_account>[\d*]+)\)(?: \d+)? on (?P<date>\d\d/\d\d/\d{4} \d\d:\d\d:\d\d)'
+date_format = "%d/%m/%Y %H:%M:%S"
+extract = [
+  'Your transaction number is (?P<reference>\w+)',
+  'Your current E-Money Account balance is ETB {balance}',
+]
+
+# Arrives with "Your credit request … is successful"; pairing them is the
+# reconcile step's job.
+[[rule]]
+id = "telebirr.credit"
+source = "telebirr"
+senders = ["127"]
+kind = "credit"
+priority = 40
+pattern = 'Your telebirr account has been credited with ETB {amount}\.'
+extract = ['E-Money Account balance is ETB {balance}']
+
+[[rule]]
+id = "telebirr.loan_draw"
+source = "telebirr"
+senders = ["127"]
+kind = "loan_draw"
+priority = 60
+pattern = 'Your credit request with (?P<reference>\w+) contract number is successful\. The credit amount is ETB {amount} and facilitation fee ETB {fee}'
+
+# Endekise / Ethiotel Credit topping up a payment that the balance didn't
+# cover. The payment has its own message. The contract number in it is the
+# same for every use, so it isn't taken as a reference.
+[[rule]]
+id = "telebirr.loan_use"
+source = "telebirr"
+senders = ["127"]
+kind = "loan_use"
+priority = 60
+pattern = 'Your transaction is successfully completed using (?P<description>.+?)\. You have used ETB {amount} credit amount on this transaction'
+extract = [
+  'The service fee is ETB {fee}',
+  'Your outstanding amount is ETB {outstanding}',
+]
+
+[[rule]]
+id = "telebirr.loan_repay.auto"
+source = "telebirr"
+senders = ["127"]
+kind = "loan_repay"
+priority = 60
+pattern = 'You have successfully paid a credit amount of ETB {amount} on (?P<date>\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\. Your current outstanding credit amount ETB {outstanding}'
+date_format = "%Y-%m-%d %H:%M:%S"
+
+[[rule]]
+id = "telebirr.loan_repay.full"
+source = "telebirr"
+senders = ["127"]
+kind = "loan_repay"
+priority = 60
+pattern = 'your outstanding Credit amount has been paid successfully\. The paid amount is ETB {amount},'
+extract = ['your total outstanding amount is ETB {outstanding}']
+
+# ── Commercial Bank of Ethiopia (CBE) ───────────────────────────────────────
+# CBE messages carry no date; the receive time is used.
+
+[[rule]]
+id = "cbe.debit"
+source = "cbe"
+senders = ["CBE"]
+kind = "debit"
+priority = 50
+pattern = 'A debit transaction of ETB ?{amount}\.? has occurred on your account (?P<account>[\d*]+)'
+extract = [
+  'Service charge of ETB ?{fee} and VAT\(15%\) of (?:ETB ?)?{vat} and Disaster Recovery\(5%\) of (?:ETB ?)?{levy}',
+  '(?i:your current balance is) ETB ?{balance}',
+  '(?:mbreciept\.cbe\.com\.et/|BranchReceipt/)(?P<reference>[\w-]+)',
+]
+
+[[rule]]
+id = "cbe.transfer_out"
+source = "cbe"
+senders = ["CBE"]
+kind = "transfer_out"
+priority = 50
+pattern = 'You have successfully transferred ETB ?{amount} from account (?P<account>[\d*]+) to account (?P<counterparty_account>[\d*]+) \((?P<counterparty>[^)]+)\)'
+extract = [
+  'Service charge of ETB ?{fee} and VAT\(15%\) of (?:ETB ?)?{vat} and Disaster Recovery\(5%\) of (?:ETB ?)?{levy}',
+  '(?i:your current balance is) ETB ?{balance}',
+  '(?:mbreciept\.cbe\.com\.et/|BranchReceipt/)(?P<reference>[\w-]+)',
+]
+
+[[rule]]
+id = "cbe.transfer_in"
+source = "cbe"
+senders = ["CBE"]
+kind = "transfer_in"
+priority = 50
+pattern = 'You have received ETB ?{amount} from account (?P<counterparty_account>[\d*]+) \((?P<counterparty>[^)]+)\) to your account (?P<account>[\d*]+)'
+extract = [
+  '(?i:your current balance is) ETB ?{balance}',
+  '(?:mbreciept\.cbe\.com\.et/|BranchReceipt/)(?P<reference>[\w-]+)',
+]
+
+[[rule]]
+id = "cbe.credit.from"
+source = "cbe"
+senders = ["CBE"]
+kind = "transfer_in"
+priority = 50
+pattern = 'your Account (?P<account>[\d*]+) has been credited by (?P<counterparty>.+?) with ETB ?{amount}\.'
+extract = [
+  '(?i:your current balance is) ETB ?{balance}',
+  '(?:mbreciept\.cbe\.com\.et/|BranchReceipt/)(?P<reference>[\w-]+)',
+]
+
+[[rule]]
+id = "cbe.credit"
+source = "cbe"
+senders = ["CBE"]
+kind = "credit"
+priority = 40
+pattern = 'your Account (?P<account>[\d*]+) has been credited with ETB ?{amount}\.'
+extract = [
+  '(?i:your current balance is) ETB ?{balance}',
+  '(?:mbreciept\.cbe\.com\.et/|BranchReceipt/)(?P<reference>[\w-]+)',
+]
+
+# ── Zemen Bank ──────────────────────────────────────────────────────────────
+
+[[rule]]
+id = "zemen.ignore.otp"
+source = "zemen"
+senders = ["Zemen Bank"]
+kind = "ignore"
+pattern = 'Your One Time Password is'
+
+[[rule]]
+id = "zemen.transfer_out.telebirr"
+source = "zemen"
+senders = ["Zemen Bank"]
+kind = "transfer_out"
+priority = 60
+pattern = '(?i:your account) (?P<account>[\dx]+) has been debited with ETB {amount} to telebirr wallet (?P<target_number>\d+) with reference (?P<reference>\w+) on (?P<date>\d{1,2}-[A-Za-z]{3}-\d{4})'
+date_format = "%d-%b-%Y"
+counterparty = "telebirr"
+extract = ['Current Balance is ETB {balance}']
+
+[[rule]]
+id = "zemen.transfer_out.bank"
+source = "zemen"
+senders = ["Zemen Bank"]
+kind = "transfer_out"
+priority = 50
+pattern = '(?i:your account) (?P<account>[\dx]+) has been debited with ETB {amount} to (?P<counterparty>.+?) \((?P<counterparty_account>\d+)\), (?P<description>.+?) with reference (?P<reference>\w+) on (?P<date>\d{1,2}-[A-Za-z]{3}-\d{4})'
+date_format = "%d-%b-%Y"
+extract = ['Current Balance is ETB {balance}']
+
+[[rule]]
+id = "zemen.deposit"
+source = "zemen"
+senders = ["Zemen Bank"]
+kind = "deposit"
+priority = 50
+pattern = 'Birr {amount} (?P<description>[^-]+?) ?- deposit has been made to A/c No (?P<account>[\dx]+) on (?P<date>\d{1,2}-[A-Za-z]{3}-\d{4})'
+date_format = "%d-%b-%Y"
+extract = [
+  'Available Bal\. ?is Birr {balance}',
+  'ref=(?P<reference>\w+)',
+]
+
+[[rule]]
+id = "zemen.transfer_out.rtgs"
+source = "zemen"
+senders = ["Zemen Bank"]
+kind = "transfer_out"
+priority = 50
+pattern = 'Birr {amount} Outward RTGS transfer has been deducted .*?from A/c No\. (?P<account>[\dx]+) to (?P<counterparty>.*?) ?Bank on (?P<date>\d{1,2}-[A-Za-z]{3}-\d{4})'
+date_format = "%d-%b-%Y"
+description = "RTGS transfer"
+extract = [
+  'Available Bal\. ?is Birr {balance}',
+  'ref=(?P<reference>\w+)',
+]
+
+# ── YaYa Wallet ─────────────────────────────────────────────────────────────
+
+[[rule]]
+id = "yaya.debit"
+source = "yaya"
+senders = ["YaYa Wallet"]
+kind = "debit"
+priority = 50
+pattern = 'your YaYa Wallet account (?P<account>\S+) has been debited with {amount} birr; service fee {fee} birr; \(15%\) VAT {vat} birr and disaster risk response \(5%\) {levy} birr on (?P<date>\d\d/\d\d/\d{4})'
+date_format = "%d/%m/%Y"
+extract = ['Your current balance is {balance} birr']
+
+[[rule]]
+id = "yaya.credit"
+source = "yaya"
+senders = ["YaYa Wallet"]
+kind = "credit"
+priority = 50
+pattern = 'your YaYa Wallet account (?P<account>\S+) has been credited with {amount} birr'
+extract = ['Your current balance is {balance} birr']
+
+# ── CBE Birr (Amharic) ──────────────────────────────────────────────────────
+
+[[rule]]
+id = "cbebirr.ignore.insufficient_funds"
+source = "cbebirr"
+senders = ["CBEBirr"]
+kind = "ignore"
+pattern = 'በቂ የገንዘብ መጠን የለም'
+
+# "Dear customer, you paid 1.03 Br. to 578868 - Arifpay on 21/09/26 10:33 for
+# goods (እቃ ግዢ), receipt DIL…; your balance is 8.91 Br."
+[[rule]]
+id = "cbebirr.payment"
+source = "cbebirr"
+senders = ["CBEBirr"]
+kind = "payment"
+priority = 50
+pattern = 'ለ (?P<counterparty_account>\d+) - (?P<counterparty>.+?) በቀን (?P<date>\d\d/\d\d/\d\d \d\d:\d\d) የ {amount} ?Br\. (?P<description>.+?) በደረሰኝ ቁጥር (?P<reference>\w+)'
+date_format = "%d/%m/%y %H:%M"
+extract = ['ቀሪ ሂሳብ {balance} ?Br\.']
+
+# ── Addis Bank ──────────────────────────────────────────────────────────────
+
+[[rule]]
+id = "addis.transfer_in.telebirr"
+source = "addis"
+senders = ["Addis Bank"]
+kind = "transfer_in"
+priority = 50
+pattern = 'your transfer from your telebirr with Ref: (?P<reference>\w+) ETB {amount} is successfully sent to Addis Bank Account (?P<account>[\d* ]+?) (?P<date>\d\d/\d\d/\d{4} at \d\d:\d\d)'
+date_format = "%d/%m/%Y at %H:%M"
+counterparty = "telebirr"

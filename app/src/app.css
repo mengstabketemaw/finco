@@ -1,0 +1,199 @@
+/* Same family as timlo: warm neutrals, one accent, flat cards. finco's accent
+   is green; money in is green too, money out stays plain text (red is kept
+   for budgets that are over). */
+:root {
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --surface-2: #efece5;
+  --border: #dcd7cc;
+  --text: #24221f;
+  --muted: #6f6a61;
+  --accent: #2f6b52;
+  --accent-text: #ffffff;
+  --accent-bg: #e2efe8;
+  --in: #2f7d4f;
+  --in-bg: #e3f1e7;
+  --warn: #9a6416;
+  --warn-bg: #f8ecd6;
+  --danger: #b2452f;
+  --danger-bg: #f7e4df;
+  --bar: #c9c3b6;
+  --radius: 10px;
+  color-scheme: light;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1d21;
+    --surface: #24272c;
+    --surface-2: #2d3036;
+    --border: #3a3e45;
+    --text: #e8e6e1;
+    --muted: #9b978f;
+    --accent: #7cc4a2;
+    --accent-text: #10201a;
+    --accent-bg: #223a30;
+    --in: #8bd3a2;
+    --in-bg: #22362a;
+    --warn: #e9b766;
+    --warn-bg: #3b3020;
+    --danger: #f0937f;
+    --danger-bg: #3d2722;
+    --bar: #4a4e56;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+
+button.ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+input,
+select {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+  min-width: 0;
+}
+
+input:focus,
+select:focus,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.in {
+  color: var(--in);
+}
+
+/* A category's round emoji badge. */
+.badge {
+  display: inline-grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  background: var(--surface-2);
+  flex: none;
+  font-size: 1.05rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+}
+
+.chip.active {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--muted);
+}

@@ -1,0 +1,17 @@
+[package]
+name = "finco-sync"
+description = "Supabase sync for finco: login, push/pull, Realtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+dirs.workspace = true
+finco-core = { path = "../finco-core" }
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tungstenite.workspace = true
+ureq.workspace = true

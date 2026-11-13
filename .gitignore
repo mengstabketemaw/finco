@@ -1,0 +1,8 @@
+/target
+.env
+# Raw SMS exports contain real names, balances and account numbers.
+*.sms.json
+node_modules
+app/dist
+# Real transactions exported for previewing the UI.
+app/public/dev-data.json

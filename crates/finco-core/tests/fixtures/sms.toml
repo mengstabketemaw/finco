@@ -1,0 +1,865 @@
+# One case per real SMS format, copied from a real inbox (Sep–Nov 2026) with
+# names, account numbers, phone numbers and references replaced. Wording,
+# punctuation, spacing and line breaks are kept exactly, typos included.
+#
+# 0911223344 / 251911223344 stands in for the owner's own number.
+# Money is written as in the message; occurred_at defaults to received_at.
+
+# ── telebirr (127) ──────────────────────────────────────────────────────────
+
+[[case]]
+name = "telebirr transfer to a person"
+sender = "127"
+received_at = "2026-10-02T19:35:02+03:00"
+body = '''Dear Abebe
+You have transferred ETB 15.00 to Kebede Alemu (2519****8470) on 02/10/2026 19:34:59. Your transaction number is DJ21AAAAA1. The service fee is  ETB 0.87 and  15% VAT on the service fee is ETB 0.13. Your current E-Money Account  balance is ETB 2,791.06. To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJ21AAAAA1.
+
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.transfer_out.person"
+kind = "transfer_out"
+amount = "15.00"
+fee = "1.00"
+balance = "2,791.06"
+counterparty = "Kebede Alemu"
+counterparty_account = "****8470"
+reference = "DJ21AAAAA1"
+occurred_at = "2026-10-02T19:34:59+03:00"
+
+[[case]]
+name = "telebirr transfer to a person, lowercase name, higher fee"
+sender = "127"
+received_at = "2026-10-11T19:20:20+03:00"
+body = '''Dear Abebe
+You have transferred ETB 400.00 to selam haile (2519****3834) on 11/10/2026 19:20:15. Your transaction number is DJB5AAAAA2. The service fee is  ETB 1.74 and  15% VAT on the service fee is ETB 0.26. Your current E-Money Account  balance is ETB 3,698.16. To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJB5AAAAA2.
+
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.transfer_out.person"
+kind = "transfer_out"
+amount = "400.00"
+fee = "2.00"
+balance = "3,698.16"
+counterparty = "selam haile"
+counterparty_account = "****3834"
+reference = "DJB5AAAAA2"
+occurred_at = "2026-10-11T19:20:15+03:00"
+
+[[case]]
+name = "telebirr package for own number"
+sender = "127"
+received_at = "2026-10-06T18:12:09+03:00"
+body = '''Dear Abebe
+You have paid ETB 70.00 for package Daily Internet Package 2.4GB purchase made for 911223344 on 06/10/2026 18:12:05. Your transaction number is  DJ68BBBBB1. Your current balance is ETB 4,190.16.To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJ68BBBBB1
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.package"
+kind = "package"
+amount = "70.00"
+balance = "4,190.16"
+reference = "DJ68BBBBB1"
+target_number = "0911223344"
+description = "Daily Internet Package 2.4GB"
+occurred_at = "2026-10-06T18:12:05+03:00"
+
+[[case]]
+name = "telebirr package, older message without the package name"
+sender = "127"
+received_at = "2026-09-27T23:01:50+03:00"
+body = '''Dear Abebe
+You have paid ETB 48.00 for package purchase made for 990000002 on 27/09/2026 23:01:43. Your transaction number is DIR5BBBBB4. Your current balance is ETB 0.00.To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DIR5BBBBB4
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.package"
+kind = "package"
+amount = "48.00"
+balance = "0.00"
+reference = "DIR5BBBBB4"
+target_number = "0990000002"
+occurred_at = "2026-09-27T23:01:43+03:00"
+
+[[case]]
+name = "telebirr insufficient balance"
+sender = "127"
+received_at = "2026-09-28T10:00:00+03:00"
+body = '''Sorry, You have insufficient balance for the requested transaction. Your account balance is ETB 0.00. Please deposit additional amount and try again.
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "ignored"
+rule_id = "telebirr.ignore.insufficient_balance"
+
+[[case]]
+name = "telebirr package for someone else"
+sender = "127"
+received_at = "2026-10-02T21:04:50+03:00"
+body = '''Dear Abebe
+You have paid ETB 95.00 for package Gift Daily unlimited Internet purchase made for 990000001 on 02/10/2026 21:04:45. Your transaction number is  DJ21BBBBB2. Your current balance is ETB 2,686.06.To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJ21BBBBB2
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.package"
+kind = "package"
+amount = "95.00"
+balance = "2,686.06"
+reference = "DJ21BBBBB2"
+target_number = "0990000001"
+description = "Gift Daily unlimited Internet"
+occurred_at = "2026-10-02T21:04:45+03:00"
+
+[[case]]
+name = "telebirr voice package with a plus sign in its name"
+sender = "127"
+received_at = "2026-10-04T14:25:52+03:00"
+body = '''Dear Abebe
+You have paid ETB 75.00 for package Voice Monthly for 228 +114 Min night package bonus purchase made for 911223344 on 04/10/2026 14:25:48. Your transaction number is  DJ40BBBBB3. Your current balance is ETB 488.06.To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJ40BBBBB3
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.package"
+kind = "package"
+amount = "75.00"
+balance = "488.06"
+reference = "DJ40BBBBB3"
+target_number = "0911223344"
+description = "Voice Monthly for 228 +114 Min night package bonus"
+occurred_at = "2026-10-04T14:25:48+03:00"
+
+[[case]]
+name = "telebirr goods purchase from a merchant, no fee line"
+sender = "127"
+received_at = "2026-10-03T14:26:55+03:00"
+body = '''Dear Abebe Kebede
+ You have paid ETB 628.00 for goods purchased to 500458 - beU delivery on 03/10/2026 14:26:51. Your transaction number is  DJ30CCCCC1. Your current balance is ETB 2,058.06.
+To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJ30CCCCC1
+Thank you for using telebirr
+Ethiotelecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.payment.merchant"
+kind = "payment"
+amount = "628.00"
+balance = "2,058.06"
+counterparty = "beU delivery"
+counterparty_account = "500458"
+reference = "DJ30CCCCC1"
+description = "goods purchased"
+occurred_at = "2026-10-03T14:26:51+03:00"
+
+[[case]]
+name = "telebirr merchant payment, fee line before the reference"
+sender = "127"
+received_at = "2026-10-14T09:10:00+03:00"
+body = '''Dear Abebe
+You have paid ETB 1.03 for service fee to 513076 - ARIFPAY FINANCIAL TECHNOLOGIS SC on 14/10/2026 09:09:55. The service fee is  ETB 0.00 and  15% VAT on the service fee is ETB 0.00. Your transaction number is  DJE2CCCCC2. Your current balance is ETB 1,059.41.To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJE2CCCCC2.
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.payment.merchant"
+kind = "payment"
+amount = "1.03"
+balance = "1,059.41"
+counterparty = "ARIFPAY FINANCIAL TECHNOLOGIS SC"
+counterparty_account = "513076"
+reference = "DJE2CCCCC2"
+description = "service fee"
+occurred_at = "2026-10-14T09:09:55+03:00"
+
+[[case]]
+name = "telebirr education payment, fee line after the reference, no space after date"
+sender = "127"
+received_at = "2026-10-12T19:43:40+03:00"
+body = '''Dear Abebe
+You have paid ETB 300.00 for Education payment to 5110 - Addis Ababa University on 12/10/2026 19:43:35.Your transaction number is  DJC0CCCCC3. The service fee is  ETB 1.50 and  15% VAT on the service fee is ETB 0.22.  Your current balance is ETB 2,852.44.
+To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJC0CCCCC3
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.payment.merchant"
+kind = "payment"
+amount = "300.00"
+fee = "1.72"
+balance = "2,852.44"
+counterparty = "Addis Ababa University"
+counterparty_account = "5110"
+reference = "DJC0CCCCC3"
+description = "Education payment"
+occurred_at = "2026-10-12T19:43:35+03:00"
+
+[[case]]
+name = "telebirr merchant payment worded 'from'"
+sender = "127"
+received_at = "2026-10-13T18:39:31+03:00"
+body = '''Dear Abebe
+You have paid ETB 550.00 for Service Fee from 870469 - SAMPLE GENERAL TRADING PLC on 13/10/2026 18:39:27. The service fee is  ETB 0.00 and  15% VAT on the service fee is ETB 0.00. Your transaction number is  DJD7CCCCC4. Your current balance is ETB 900.44. To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJD7CCCCC4
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.payment.merchant"
+kind = "payment"
+amount = "550.00"
+balance = "900.44"
+counterparty = "SAMPLE GENERAL TRADING PLC"
+counterparty_account = "870469"
+reference = "DJD7CCCCC4"
+description = "Service Fee"
+occurred_at = "2026-10-13T18:39:27+03:00"
+
+[[case]]
+name = "telebirr transport payment"
+sender = "127"
+received_at = "2026-11-11T08:28:30+03:00"
+body = '''Dear Abebe
+You have paid ETB 15.40 for Transport services to 514819 - LEKFEL on 11/11/2026 08:28:25.Your transaction number is  DKB9CCCCC5. Your current balance is ETB 176.52.
+To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DKB9CCCCC5
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.payment.merchant"
+kind = "payment"
+amount = "15.40"
+balance = "176.52"
+counterparty = "LEKFEL"
+counterparty_account = "514819"
+reference = "DKB9CCCCC5"
+description = "Transport services"
+occurred_at = "2026-11-11T08:28:25+03:00"
+
+[[case]]
+name = "telebirr airtime for own number"
+sender = "127"
+received_at = "2026-10-18T15:01:15+03:00"
+body = '''Dear Abebe
+You have recharged ETB 10.00 airtime for 911223344 on 18/10/2026 15:01:12. Your transaction number is DJI0DDDDD1. Your current  balance is  ETB 70.41. To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJI0DDDDD1
+For any support and information related to telebirr service
+Send SMS to 126 or Contact us via
+Telegram: https://t.me/telebirr
+Facebook: https://facebook.com/telebirr or
+Visit our website :https://www.ethiotelecom.et/telebirr/
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.airtime"
+kind = "airtime"
+amount = "10.00"
+balance = "70.41"
+reference = "DJI0DDDDD1"
+target_number = "0911223344"
+occurred_at = "2026-10-18T15:01:12+03:00"
+
+[[case]]
+name = "telebirr airtime for another number written with a leading 0"
+sender = "127"
+received_at = "2026-11-07T09:17:52+03:00"
+body = '''Dear Abebe
+You have recharged ETB 25.00 airtime for 0990000001 on 07/11/2026 09:17:48. Your transaction number is DK73DDDDD2. Your current  balance is  ETB 692.22. To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DK73DDDDD2
+For any support and information related to telebirr service
+Send SMS to 126 or Contact us via
+Telegram: https://t.me/telebirr
+Facebook: https://facebook.com/telebirr or
+Visit our website :https://www.ethiotelecom.et/telebirr/
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.airtime"
+kind = "airtime"
+amount = "25.00"
+balance = "692.22"
+reference = "DK73DDDDD2"
+target_number = "0990000001"
+occurred_at = "2026-11-07T09:17:48+03:00"
+
+[[case]]
+name = "telebirr airtime received (other side of a recharge)"
+sender = "127"
+received_at = "2026-10-18T15:01:16+03:00"
+body = '''Dear Customer
+You have received ETB 10.00 airtime from 251911223344 on 18/10/2026 15:01:12. Your transaction number is DJI0DDDDD1.
+Thank you for using telebirr
+ethio telecom'''
+[case.expect]
+outcome = "ignored"
+rule_id = "telebirr.ignore.airtime_received"
+
+[[case]]
+name = "telebirr transfer to a bank account"
+sender = "127"
+received_at = "2026-10-07T09:19:30+03:00"
+body = '''Dear Abebe
+You have transferred ETB 1,700.00 successfully from your telebirr account 251911223344 to Commercial Bank of Ethiopia account number 1000012345678 on 07/10/2026 09:19:22. Your telebirr transaction number is DJ77EEEEE1 and your bank transaction number is FT26280ABCDE. The service fee is  ETB 7.83 and  15% VAT on the service fee is ETB 1.17. Your current balance is ETB 2,410.16. To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJ77EEEEE1
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.transfer_out.bank"
+kind = "transfer_out"
+amount = "1,700.00"
+fee = "9.00"
+balance = "2,410.16"
+counterparty = "Commercial Bank of Ethiopia"
+counterparty_account = "****5678"
+reference = "DJ77EEEEE1"
+occurred_at = "2026-10-07T09:19:22+03:00"
+
+[[case]]
+name = "telebirr received from a bank"
+sender = "127"
+received_at = "2026-10-23T09:14:50+03:00"
+body = '''Dear Abebe,
+You have received  ETB 3,000.00 by transaction number DJN2FFFFF1 on 2026-10-23 09:14:45 from Zemen Bank to your telebirr Account 251911223344 - Abebe Kebede Tesfaye. Your current balance is ETB 3,000.00.
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.transfer_in.bank"
+kind = "transfer_in"
+amount = "3,000.00"
+balance = "3,000.00"
+counterparty = "Zemen Bank"
+reference = "DJN2FFFFF1"
+occurred_at = "2026-10-23T09:14:45+03:00"
+
+[[case]]
+name = "telebirr received from a person"
+sender = "127"
+received_at = "2026-10-08T13:14:30+03:00"
+body = '''Dear Abebe
+You have received ETB 200.00 from Samuel Petros(2519****3245)  on 08/10/2026 13:14:24. Your transaction number is DJ87GGGGG1. Your current E-Money Account balance is ETB 665.16.
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.transfer_in.person"
+kind = "transfer_in"
+amount = "200.00"
+balance = "665.16"
+counterparty = "Samuel Petros"
+counterparty_account = "****3245"
+reference = "DJ87GGGGG1"
+occurred_at = "2026-10-08T13:14:24+03:00"
+
+[[case]]
+name = "telebirr received from a person, extra id after the number"
+sender = "127"
+received_at = "2026-10-13T18:42:25+03:00"
+body = '''Dear Abebe
+You have received ETB 280.00 from dawit tadesse(2519****2771) 100409 on 13/10/2026 18:42:20. Your transaction number is DJD7GGGGG2. Your current E-Money Account balance is ETB 1,280.44.
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.transfer_in.person"
+kind = "transfer_in"
+amount = "280.00"
+balance = "1,280.44"
+counterparty = "dawit tadesse"
+counterparty_account = "****2771"
+reference = "DJD7GGGGG2"
+occurred_at = "2026-10-13T18:42:20+03:00"
+
+[[case]]
+name = "telebirr received from a merchant (refund)"
+sender = "127"
+received_at = "2026-10-03T15:48:30+03:00"
+body = '''Dear Abebe
+You have received ETB 628.00 from Binary Technologies PLC - short code 500458 on 03/10/2026 15:48:23. Your transaction number is DJ32GGGGG3. Your current E-Money Account balance is ETB 2,686.06.To download your payment information please click this link: https://transactioninfo.ethiotelecom.et/receipt/DJ32GGGGG3
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.transfer_in.merchant"
+kind = "transfer_in"
+amount = "628.00"
+balance = "2,686.06"
+counterparty = "Binary Technologies PLC"
+counterparty_account = "500458"
+reference = "DJ32GGGGG3"
+occurred_at = "2026-10-03T15:48:23+03:00"
+
+[[case]]
+name = "telebirr Endekise credit covering a payment"
+sender = "127"
+received_at = "2026-10-05T13:47:01+03:00"
+body = '''Dear Abebe
+Your transaction is successfully completed using Endekise. You have used ETB 54.48 credit amount on this transaction. The service fee is ETB 1.36 and the daily fee will be 0.46 depending on your credit limit. Your outstanding amount is ETB 55.84 with due date of 2026-11-05 00:00:00. Your Contract number is 31500001.
+Thank you for using telebirr
+Ethio telecom in partnership with Dashen Bank'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.loan_use"
+kind = "loan_use"
+amount = "54.48"
+fee = "1.36"
+outstanding = "55.84"
+description = "Endekise"
+
+[[case]]
+name = "telebirr Ethiotel Credit, no space before 'and'"
+sender = "127"
+received_at = "2026-11-12T11:27:23+03:00"
+body = '''Dear Abebe
+Your transaction is successfully completed using Ethiotel Credit. You have used ETB 5.00 credit amount on this transaction.
+The service fee is ETB 0.40and the daily fee is ETB 0.01. Your outstanding amount is ETB 5.40 with due date of 2026-12-13 00:00:00. Your Contract number is 35300002.
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.loan_use"
+kind = "loan_use"
+amount = "5.00"
+fee = "0.40"
+outstanding = "5.40"
+description = "Ethiotel Credit"
+
+[[case]]
+name = "telebirr automatic credit repayment"
+sender = "127"
+received_at = "2026-10-05T17:18:21+03:00"
+body = '''Dear Abebe
+You have successfully paid a credit amount of  ETB 55.84 on 2026-10-05 17:18:12. Your current outstanding credit amount ETB 0.00
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.loan_repay.auto"
+kind = "loan_repay"
+amount = "55.84"
+outstanding = "0.00"
+occurred_at = "2026-10-05T17:18:12+03:00"
+
+[[case]]
+name = "telebirr loan paid off"
+sender = "127"
+received_at = "2026-10-23T09:15:30+03:00"
+body = '''Dear Abebe,
+your outstanding Credit amount has been paid successfully. The paid amount is ETB 531.50, your monthly outstanding amount is ETB
+0.00 and your total outstanding amount is ETB 0.00.
+Thank you for using telebirr
+Ethio telecom in partnership with CBE'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.loan_repay.full"
+kind = "loan_repay"
+amount = "531.50"
+outstanding = "0.00"
+
+[[case]]
+name = "telebirr loan taken"
+sender = "127"
+received_at = "2026-10-13T08:00:12+03:00"
+body = '''Dear Abebe,
+Your credit request with DJI8HHHHH1 contract number is successful. The credit amount is ETB 500.00 and facilitation fee ETB 12.50 with due date 12/11/2026 and the daily fee will be from 0.50% to 0,80% depending on your credit limit. Your current available credit limit ETB400.00.
+Thank you for using telebirr
+Ethio telecom in partnership with CBE Bank'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.loan_draw"
+kind = "loan_draw"
+amount = "500.00"
+fee = "12.50"
+reference = "DJI8HHHHH1"
+
+[[case]]
+name = "telebirr account credited (loan payout)"
+sender = "127"
+received_at = "2026-10-13T08:00:00+03:00"
+body = '''Dear Abebe
+Your telebirr account has been credited with ETB 500.00. Your current telebirr E-Money Account balance is ETB 565.41.
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.credit"
+kind = "credit"
+amount = "500.00"
+balance = "565.41"
+
+[[case]]
+name = "telebirr disaster fund levy on a loan"
+sender = "127"
+received_at = "2026-10-13T07:59:58+03:00"
+body = '''Dear Abebe
+You have paid ETB 5.00 for Ethiopian Disaster Risk Management fund (1% of your loan amount) .Your current telebirr balance is ETB 565.41.
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "parsed"
+rule_id = "telebirr.fee.disaster_fund"
+kind = "fee"
+amount = "5.00"
+balance = "565.41"
+description = "Ethiopian Disaster Risk Management fund"
+
+[[case]]
+name = "telebirr wrong PIN"
+sender = "127"
+received_at = "2026-10-10T10:00:00+03:00"
+body = '''Sorry, your PIN or password is incorrect. please check and try again.
+For any support and information related to telebirr service
+Send SMS to 126 or Contact us via
+Telegram: https://t.me/telebirr
+Facebook: https://facebook.com/telebirr or
+Visit our website :https://www.ethiotelecom.et/telebirr/
+Thank you for using telebirr
+Ethio telecom'''
+[case.expect]
+outcome = "ignored"
+rule_id = "telebirr.ignore.wrong_pin"
+
+[[case]]
+name = "telebirr verification code"
+sender = "127"
+received_at = "2026-10-10T10:00:00+03:00"
+body = '''Your verification code is: 123456.'''
+[case.expect]
+outcome = "ignored"
+rule_id = "telebirr.ignore.otp"
+
+[[case]]
+name = "telebirr format never seen before is flagged for review"
+sender = "127"
+received_at = "2026-11-01T10:00:05+03:00"
+body = '''Dear Abebe
+You have withdrawn ETB 500.00 from agent 12345 on 01/11/2026 10:00:00. Your current balance is ETB 100.00.'''
+[case.expect]
+outcome = "unrecognized"
+
+# ── CBE ─────────────────────────────────────────────────────────────────────
+
+[[case]]
+name = "CBE debit, amount with a stray trailing period"
+sender = "CBE"
+received_at = "2026-10-20T12:00:00+03:00"
+body = '''Dear Abebe Kebede Tesfaye A debit transaction of ETB 100.0. has occurred on your account 1********4321. Service charge of ETB 10.00 and VAT(15%) of ETB1.50 and Disaster Recovery(5%) of 0.50 with total of ETB112.00 .Your current balance is ETB23,132.86. Thanks for Banking with CBE. https://mbreciept.cbe.com.et/v2-aaaaaaaaaaaaaaaaaaaa  for feedback: https://forms.gle/xxxxxxxxxxxxxxxxx'''
+[case.expect]
+outcome = "parsed"
+rule_id = "cbe.debit"
+kind = "debit"
+amount = "100.00"
+fee = "12.00"
+balance = "23,132.86"
+account = "****4321"
+reference = "v2-aaaaaaaaaaaaaaaaaaaa"
+
+[[case]]
+name = "CBE debit with zero fees"
+sender = "CBE"
+received_at = "2026-10-21T12:00:00+03:00"
+body = '''Dear Abebe Kebede Tesfaye A debit transaction of ETB 170.0. has occurred on your account 1********4321. Service charge of ETB 0.00 and VAT(15%) of 0.0 and Disaster Recovery(5%) of 0.00 with total of ETB170.00 .Your current balance is ETB22,347.85. Thanks for Banking with CBE. https://mbreciept.cbe.com.et/v2-bbbbbbbbbbbbbbbbbbbb  for feedback: https://forms.gle/xxxxxxxxxxxxxxxxx'''
+[case.expect]
+outcome = "parsed"
+rule_id = "cbe.debit"
+kind = "debit"
+amount = "170.00"
+balance = "22,347.85"
+account = "****4321"
+reference = "v2-bbbbbbbbbbbbbbbbbbbb"
+
+[[case]]
+name = "CBE debit, newer spacing"
+sender = "CBE"
+received_at = "2026-11-07T12:00:00+03:00"
+body = '''Dear Abebe Kebede Tesfaye A debit transaction of ETB 500.00 has occurred on your account 1********4321. Service charge of ETB 10.00 and VAT(15%) of ETB 1.50 and Disaster Recovery(5%) of 0.50 with total of ETB 512.00. Your current balance is ETB 984.42. Thanks for Banking with CBE. https://mbreciept.cbe.com.et/v2-cccccccccccccccccccc  for feedback: https://forms.gle/xxxxxxxxxxxxxxxxx'''
+[case.expect]
+outcome = "parsed"
+rule_id = "cbe.debit"
+kind = "debit"
+amount = "500.00"
+fee = "12.00"
+balance = "984.42"
+account = "****4321"
+reference = "v2-cccccccccccccccccccc"
+
+[[case]]
+name = "CBE transfer to another account"
+sender = "CBE"
+received_at = "2026-10-15T12:00:00+03:00"
+body = '''Dear  Abebe Kebede Tesfaye You have successfully transferred ETB37000.00 from account 1********4321 to account 1********3414 (Hana Bekele Girma). Service charge of ETB 3.00 and VAT(15%) of ETB0.45 and Disaster Recovery(5%) of 0.15 with total of ETB37003.60 .Your current balance is ETB23,244.86. Thanks for Banking with CBE. https://mbreciept.cbe.com.et/v2-dddddddddddddddddddd  for feedback: https://forms.gle/xxxxxxxxxxxxxxxxx'''
+[case.expect]
+outcome = "parsed"
+rule_id = "cbe.transfer_out"
+kind = "transfer_out"
+amount = "37000.00"
+fee = "3.60"
+balance = "23,244.86"
+counterparty = "Hana Bekele Girma"
+counterparty_account = "****3414"
+account = "****4321"
+reference = "v2-dddddddddddddddddddd"
+
+[[case]]
+name = "CBE received from another account"
+sender = "CBE"
+received_at = "2026-10-16T12:00:00+03:00"
+body = '''Dear Abebe Kebede Tesfaye You have received ETB 2,000.00 from account 1********0366 (Mahlet Kebede Tesfaye) to your account 1********4321. Your current balance is ETB25,132.86. Thanks for Banking with CBE. https://mbreciept.cbe.com.et/v2-eeeeeeeeeeeeeeeeeeee  for feedback: https://forms.gle/xxxxxxxxxxxxxxxxx'''
+[case.expect]
+outcome = "parsed"
+rule_id = "cbe.transfer_in"
+kind = "transfer_in"
+amount = "2,000.00"
+balance = "25,132.86"
+counterparty = "Mahlet Kebede Tesfaye"
+counterparty_account = "****0366"
+account = "****4321"
+reference = "v2-eeeeeeeeeeeeeeeeeeee"
+
+[[case]]
+name = "CBE credited by a named institution"
+sender = "CBE"
+received_at = "2026-09-29T12:00:00+03:00"
+body = '''Dear Mr Abebe your Account 1********4321 has been credited by NATIONAL BANK OF ETHIOPIA with ETB 30000.00. Your Current Balance is ETB 30061.03. Thank you for Banking with CBE! for Reciept https://apps.cbe.com.et:100/BranchReceipt/FT26272AAAAA&00004321'''
+[case.expect]
+outcome = "parsed"
+rule_id = "cbe.credit.from"
+kind = "transfer_in"
+amount = "30000.00"
+balance = "30061.03"
+counterparty = "NATIONAL BANK OF ETHIOPIA"
+account = "****4321"
+reference = "FT26272AAAAA"
+
+[[case]]
+name = "CBE credited, no source"
+sender = "CBE"
+received_at = "2026-10-13T12:00:00+03:00"
+body = '''Dear Mr Abebe your Account 1********4321 has been credited with ETB 640.00. Your Current Balance is ETB 4763.03. Thank you for Banking with CBE! for Reciept https://apps.cbe.com.et:100/BranchReceipt/FT262861BBBB&00004321'''
+[case.expect]
+outcome = "parsed"
+rule_id = "cbe.credit"
+kind = "credit"
+amount = "640.00"
+balance = "4763.03"
+account = "****4321"
+reference = "FT262861BBBB"
+
+[[case]]
+name = "CBE holiday greeting is ignored"
+sender = "CBE"
+received_at = "2026-09-26T12:00:00+03:00"
+body = '''ውድ ደንበኛችን እንኳን ለብርሃነ መስቀሉ በሰላም አደረሰዎ! በዓሉ የሰላም እና የደስታ እንዲሆንልዎ እንመኛለን! የኢትዮጵያ ንግድ ባንክ፣ ሁሌም የሚተማመኑበት ባንክ፡፡ ማስፈንጠሪያውን በመጫን ካርድዎን ያግኙ፡፡ https://combanketh.et/holidays'''
+[case.expect]
+outcome = "ignored"
+
+# ── Zemen Bank ──────────────────────────────────────────────────────────────
+
+[[case]]
+name = "Zemen transfer to own telebirr wallet"
+sender = "Zemen Bank"
+received_at = "2026-10-23T09:14:22+03:00"
+body = '''Dear Customer your Account 131xxxxxxxx5678 has been debited with ETB 3000 to telebirr wallet 0911223344 with reference 131ETTB260000001 on 23-Oct-2026. Your Current Balance is ETB 26172.78.
+To download your payment information click this link https://share.zemenbank.com/rt/00005678131ETTB260000001/pdf
+Thank you for banking with Zemen Bank
+
+To help us serve you better, please share us your feedback: https://feedback.zemenbank.com?ref=131ETTB260000001
+
+
+Link your Fayda: https://fayda.zemenbank.com/
+For any support, Please call  6500'''
+[case.expect]
+outcome = "parsed"
+rule_id = "zemen.transfer_out.telebirr"
+kind = "transfer_out"
+amount = "3000"
+balance = "26172.78"
+counterparty = "telebirr"
+account = "****5678"
+reference = "131ETTB260000001"
+target_number = "0911223344"
+
+[[case]]
+name = "Zemen dated with the next business day: receive time wins"
+sender = "Zemen Bank"
+received_at = "2026-11-01T15:17:06+03:00"
+body = '''Dear Customer your Account 131xxxxxxxx5678 has been debited with ETB 1000 to telebirr wallet 0911223344 with reference 131ETTB260000005 on 2-Nov-2026. Your Current Balance is ETB 58764.96.
+To download your payment information click this link https://share.zemenbank.com/rt/00005678131ETTB260000005/pdf
+Thank you for banking with Zemen Bank'''
+[case.expect]
+outcome = "parsed"
+rule_id = "zemen.transfer_out.telebirr"
+kind = "transfer_out"
+amount = "1000"
+balance = "58764.96"
+counterparty = "telebirr"
+account = "****5678"
+reference = "131ETTB260000005"
+target_number = "0911223344"
+
+[[case]]
+name = "Zemen transfer to another bank, single-digit day"
+sender = "Zemen Bank"
+received_at = "2026-11-09T10:00:00+03:00"
+body = '''Dear Customer your account 131xxxxxxxx5678 has been debited with ETB 1800 to Miss Mahlet Kebede Tesfaye (1000012340366), COMMERCIAL BANK OF ETHIOPIA with reference 108ETIP260000002 on 9-Nov-2026. Your Current Balance is ETB 46656.32.
+To download your payment information click this link https://share.zemenbank.com/ft/00005678108ETIP260000002/pdf
+Thank you for banking with Zemen Bank
+
+To help us serve you better, please share us your feedback: https://feedback.zemenbank.com?ref=108ETIP260000002
+
+
+Link your Fayda: https://fayda.zemenbank.com/
+For any support, Please call  6500'''
+[case.expect]
+outcome = "parsed"
+rule_id = "zemen.transfer_out.bank"
+kind = "transfer_out"
+amount = "1800"
+balance = "46656.32"
+counterparty = "Miss Mahlet Kebede Tesfaye"
+counterparty_account = "****0366"
+account = "****5678"
+reference = "108ETIP260000002"
+description = "COMMERCIAL BANK OF ETHIOPIA"
+
+[[case]]
+name = "Zemen branch deposit, SMS arrived the next day"
+sender = "Zemen Bank"
+received_at = "2026-09-26T08:00:00+03:00"
+body = '''Dear Customer,
+Birr 59999 Miscellaneous- deposit has been made to A/c No 131xxxxxxxx5678 on 25-Sep-2026 . The A/c Available Bal.is Birr 62173.17 and the transaction Branch is Meskel Flower Banking Center (MFBC).
+Thank you for banking with Zemen Bank
+
+To help us serve you better, please share us your feedback: https://feedback.zemenbank.com?ref=1191370260000003
+
+
+Link your Fayda: https://fayda.zemenbank.com/
+For any support, Please call  6500'''
+[case.expect]
+outcome = "parsed"
+rule_id = "zemen.deposit"
+kind = "deposit"
+amount = "59999"
+balance = "62173.17"
+account = "****5678"
+reference = "1191370260000003"
+description = "Miscellaneous"
+occurred_at = "2026-09-25T00:00:00+03:00"
+
+[[case]]
+name = "Zemen outward RTGS, receiving bank left blank"
+sender = "Zemen Bank"
+received_at = "2026-09-29T11:00:00+03:00"
+body = '''Dear Customer,
+Birr 30000 Outward RTGS transfer has been deducted with cK No.  ref.from A/c No. 131xxxxxxxx5678 to  Bank on 29-Sep-2026 . The A/c Available Bal. is Birr 32094.42 and the transaction Branch is TeleMedhanealem BankingCenter(TMBC).Thank you for banking with Zemen Bank
+
+To help us serve you better, please share us your feedback: https://feedback.zemenbank.com?ref=122RTOR260000004
+
+
+Link your Fayda: https://fayda.zemenbank.com/
+For any support, Please call  6500'''
+[case.expect]
+outcome = "parsed"
+rule_id = "zemen.transfer_out.rtgs"
+kind = "transfer_out"
+amount = "30000"
+balance = "32094.42"
+account = "****5678"
+reference = "122RTOR260000004"
+description = "RTGS transfer"
+
+[[case]]
+name = "Zemen one-time password"
+sender = "Zemen Bank "
+received_at = "2026-10-01T10:00:00+03:00"
+body = '''Your One Time Password is 123456'''
+[case.expect]
+outcome = "ignored"
+rule_id = "zemen.ignore.otp"
+
+# ── YaYa Wallet ─────────────────────────────────────────────────────────────
+
+[[case]]
+name = "YaYa debit with fees"
+sender = "YaYa Wallet"
+received_at = "2026-11-10T09:00:00+03:00"
+body = '''Dear customer, your YaYa Wallet account ab********cd has been debited with 1.00 birr; service fee 0.20 birr; (15%) VAT 0.03 birr and disaster risk response (5%) 0.01 birr on 10/11/2026. Your current balance is 80.05 birr. Thank you for using YaYa Wallet! For support, call 957. '''
+[case.expect]
+outcome = "parsed"
+rule_id = "yaya.debit"
+kind = "debit"
+amount = "1.00"
+fee = "0.24"
+balance = "80.05"
+account = "ab********cd"
+
+[[case]]
+name = "YaYa credit"
+sender = "YaYa Wallet"
+received_at = "2026-10-08T09:00:00+03:00"
+body = '''Dear customer, your YaYa Wallet account ab********cd has been credited with 100.00 birr. Your current balance is 100.00 birr. Thank you for using YaYa Wallet! For support, call 957. '''
+[case.expect]
+outcome = "parsed"
+rule_id = "yaya.credit"
+kind = "credit"
+amount = "100.00"
+balance = "100.00"
+account = "ab********cd"
+
+# ── CBE Birr ────────────────────────────────────────────────────────────────
+
+[[case]]
+name = "CBE Birr merchant payment (Amharic)"
+sender = "CBEBirr"
+received_at = "2026-09-21T10:33:20+03:00"
+body = '''ዉድ ደንበኛ ለ 578868 - Arifpay በቀን 21/09/26 10:33 የ 1.03Br.  እቃ ግዢ በደረሰኝ ቁጥር DIL4JJJJJJC  ክፍያ ፈፅመዋል፡፡አሁን ያሎት ቀሪ ሂሳብ 8.91Br. ነዉ፡፡'''
+[case.expect]
+outcome = "parsed"
+rule_id = "cbebirr.payment"
+kind = "payment"
+amount = "1.03"
+balance = "8.91"
+counterparty = "Arifpay"
+counterparty_account = "578868"
+reference = "DIL4JJJJJJC"
+description = "እቃ ግዢ"
+occurred_at = "2026-09-21T10:33:00+03:00"
+
+[[case]]
+name = "CBE Birr insufficient funds"
+sender = "CBEBirr"
+received_at = "2026-10-22T10:00:00+03:00"
+body = '''ይቅርታ ጥያቀዎን ለማስተናገድ በቂ የገንዘብ መጠን የለም፡፡ እናመሰግናለን!'''
+[case.expect]
+outcome = "ignored"
+rule_id = "cbebirr.ignore.insufficient_funds"
+
+# ── Addis Bank ──────────────────────────────────────────────────────────────
+
+[[case]]
+name = "Addis Bank received from telebirr"
+sender = "Addis Bank"
+received_at = "2026-10-01T14:55:30+03:00"
+body = '''Dear Customer, your transfer from your telebirr with Ref: EC100030000001 ETB 1.00 is  successfully sent to Addis Bank Account  **** **** **** 8001 01/10/2026 at 14:55 PM'''
+[case.expect]
+outcome = "parsed"
+rule_id = "addis.transfer_in.telebirr"
+kind = "transfer_in"
+amount = "1.00"
+counterparty = "telebirr"
+account = "****8001"
+reference = "EC100030000001"
+occurred_at = "2026-10-01T14:55:00+03:00"
+
+# ── Other senders ───────────────────────────────────────────────────────────
+
+[[case]]
+name = "sender with no rules"
+sender = "BOA"
+received_at = "2026-10-01T10:00:00+03:00"
+body = '''ብድር ተገኝቷል ! ውድ ደንበኛችን የሞባይል ባንኪንግ መተግበሪያችንን በመጠቀም ወዲያውኑ አነስተኛ ብድር ይውሰዱ ።'''
+[case.expect]
+outcome = "unknown_sender"

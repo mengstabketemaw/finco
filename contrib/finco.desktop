@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=finco
+Comment=Personal finance tracker
+Exec=finco
+Icon=finco
+Categories=Office;Finance;
+StartupWMClass=finco
