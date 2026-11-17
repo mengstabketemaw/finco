@@ -1,0 +1,28 @@
+# Arch package for finco, built from this checkout.
+#   cd packaging/arch && makepkg -f
+pkgname=finco
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Personal finance tracker from bank SMS"
+arch=('x86_64')
+license=('custom')
+depends=('webkit2gtk-4.1' 'gtk3' 'libsoup3' 'sqlite')
+makedepends=('cargo' 'npm')
+options=('!lto' '!debug')
+
+_root="$(realpath "$startdir/../..")"
+
+build() {
+  cd "$_root/app"
+  npm ci --no-audit --no-fund
+  npx tauri build --no-bundle
+}
+
+package() {
+  cd "$_root"
+  install -Dm755 target/release/finco "$pkgdir/usr/bin/finco"
+  install -Dm644 app/src-tauri/icons/128x128.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/finco.png"
+  install -Dm644 app/src-tauri/icons/128x128@2x.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/finco.png"
+  install -Dm644 app/src-tauri/icons/32x32.png "$pkgdir/usr/share/icons/hicolor/32x32/apps/finco.png"
+  install -Dm644 packaging/arch/finco.desktop "$pkgdir/usr/share/applications/finco.desktop"
+}

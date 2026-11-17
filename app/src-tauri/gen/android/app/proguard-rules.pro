@@ -19,3 +19,5 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# Rust calls these classes over JNI by name: don't rename or strip them.
+-keep class dev.finco.app.** { *; }
