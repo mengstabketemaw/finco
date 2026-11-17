@@ -2,6 +2,7 @@
 
 import { api, type Plans, type Settings, type Txn } from './api'
 import { ONE_OFF } from './money'
+import { cats, newId, setCategories } from './categories.svelte'
 
 export type Tab = 'home' | 'review' | 'activity' | 'plans' | 'settings'
 
@@ -29,7 +30,18 @@ export async function reload() {
   data.txns = txns
   data.plans = plans
   data.settings = settings
+  setCategories(settings.categories)
   data.loaded = true
+}
+
+/** Add a category (from a picker's "New category…") and return its id. */
+export async function addCategory(kind: 'spend' | 'income', label: string, emoji: string): Promise<string> {
+  const id = newId(label)
+  const lists = $state.snapshot(cats)
+  lists[kind].push({ id, label: label.trim(), emoji: emoji.trim() || '•' })
+  await api.saveSettings({ ...$state.snapshot(data.settings), categories: lists })
+  await reload()
+  return id
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined
@@ -56,4 +68,20 @@ export async function toggleBillPaid(periodKey: string, billId: string) {
   plans.bills_paid[periodKey] = [...paid]
   await api.savePlans(plans)
   await reload()
+}
+
+/**
+ * Tag several payments at once. `category` null leaves categories as they
+ * are; `note` null leaves notes as they are ("" clears them). With
+ * `remember`, the category is also used for future payments to the same
+ * recipient (only offered when they all go to one recipient).
+ */
+export async function tagMany(ids: string[], category: string | null, note: string | null, remember: boolean) {
+  const learn = remember && category !== null && !ONE_OFF.has(category)
+  for (const [i, id] of ids.entries()) {
+    if (category !== null) await api.categorize(id, category, learn && i === 0)
+    if (note !== null) await api.setNote(id, note)
+  }
+  await reload()
+  toast(ids.length === 1 ? 'Saved' : `Saved ${ids.length} payments`)
 }

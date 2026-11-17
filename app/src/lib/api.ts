@@ -3,6 +3,7 @@
 // is the mock in mock.ts, so the screens can be designed on real data.
 
 import { invoke } from '@tauri-apps/api/core'
+import type { CategoryLists } from './categories.svelte'
 import { mock } from './mock'
 
 export type Kind =
@@ -44,6 +45,8 @@ export interface Txn {
   note?: string | null
   /** Ids of earlier transactions this one pays back. */
   settles: string[]
+  /** Parts of a payment with their own category; the rest keeps `category`. */
+  splits: Split[]
   /** Paid back so far by later transactions. */
   repaid: number
   /**
@@ -51,6 +54,12 @@ export interface Txn {
    * repayments, lent and borrowed money, own-account transfers and loans.
    */
   counted: number
+}
+
+/** A part of a payment. Category `cash_back`: paid back outside the app, not counted. */
+export interface Split {
+  amount: number
+  category: string
 }
 
 /** An earlier transaction a repayment might settle. */
@@ -96,6 +105,8 @@ export interface Settings {
    * (taxi fares are always 15, 20, 25 or 50 birr).
    */
   amount_rules: Record<string, string>
+  /** Your categories; missing: the defaults (see categories.svelte.ts). */
+  categories?: CategoryLists
 }
 
 export interface Api {
@@ -111,6 +122,10 @@ export interface Api {
   link(repayId: string, settles: string[]): Promise<void>
   /** What a transaction might pay back, best first. */
   suggest(repayId: string): Promise<Suggestion[]>
+  /** Set exactly which money in pays back `paymentId` (their other links stay). */
+  setRepaidBy(paymentId: string, repayIds: string[]): Promise<void>
+  /** Split a payment into parts (empty: one piece again). */
+  setSplits(id: string, splits: Split[]): Promise<void>
   plans(): Promise<Plans>
   savePlans(plans: Plans): Promise<void>
   settings(): Promise<Settings>
@@ -144,6 +159,8 @@ const tauri: Api = {
   setNote: (id, note) => invoke('set_note', { id, note }),
   link: (repayId, settles) => invoke('link', { repayId, settles }),
   suggest: (repayId) => invoke('suggest', { repayId }),
+  setRepaidBy: (paymentId, repayIds) => invoke('set_repaid_by', { paymentId, repayIds }),
+  setSplits: (id, splits) => invoke('set_splits', { id, splits }),
   plans: () => invoke('get_plans'),
   savePlans: (plans) => invoke('save_plans', { plans }),
   settings: () => invoke('get_settings'),

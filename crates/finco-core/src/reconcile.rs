@@ -233,7 +233,7 @@ fn name_bank_accounts(txns: &mut [Txn]) {
         // People, not the bank itself or a company settlement account.
         let n = name.to_lowercase();
         if !n.contains("bank") && !n.contains("account") && n != "telebirr" {
-            names.entry((bank, acct.clone())).or_insert_with(|| name.trim_start_matches("Miss ").trim_start_matches("Mr ").to_string());
+            names.entry((bank, acct.clone())).or_insert_with(|| name.clone());
         }
     }
     for t in txns.iter_mut() {
@@ -257,6 +257,17 @@ fn is_out(t: &Txn) -> bool {
 
 fn is_in(t: &Txn) -> bool {
     matches!(t.kind, Kind::TransferIn | Kind::Credit | Kind::Deposit)
+}
+
+/// "Miss Mahlet Kebede" (Zemen) and "Mahlet Kebede" (CBE) are one person.
+fn without_title(name: &str) -> String {
+    let name = name.trim();
+    for title in ["Miss ", "Mrs ", "Mrs. ", "Ms ", "Ms. ", "Mr ", "Mr. ", "Dr ", "Dr. "] {
+        if let Some(rest) = name.strip_prefix(title) {
+            return rest.trim().to_string();
+        }
+    }
+    name.to_string()
 }
 
 /// The id a parsed message's transaction gets.
@@ -285,7 +296,7 @@ fn to_txn(p: &Parsed) -> Txn {
         fee: p.fee,
         balance: p.balance,
         outstanding: p.outstanding,
-        counterparty: p.counterparty.clone(),
+        counterparty: p.counterparty.as_deref().map(without_title),
         counterparty_account: p.counterparty_account.clone(),
         account: p.account.clone(),
         description: p.description.clone(),
@@ -451,6 +462,15 @@ mod tests {
         assert_eq!(by(7000).counterparty.as_deref(), Some("Commercial Bank of Ethiopia"), "unknown account keeps the bank");
         let merchant = t.iter().find(|x| x.occurred_at.to_rfc3339().contains("08:24")).unwrap();
         assert_eq!(merchant.counterparty.as_deref(), Some("Air Time Sales-mobile Banking"));
+    }
+
+    #[test]
+    fn titles_are_dropped_from_names() {
+        let mut zemen = p("zemen", Kind::TransferOut, 180000, "09:00:00");
+        zemen.counterparty = Some("Miss Mahlet Kebede Tesfaye".into());
+        assert_eq!(reconcile(&[zemen], &own())[0].counterparty.as_deref(), Some("Mahlet Kebede Tesfaye"));
+        assert_eq!(without_title("Mr. Abebe"), "Abebe");
+        assert_eq!(without_title("Missa Haile"), "Missa Haile");
     }
 
     #[test]

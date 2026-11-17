@@ -2,12 +2,20 @@
 //! phone with `adb exec-out run-as dev.finco.app cat files/finco.db`).
 //!
 //!     cargo run -p finco-core --example dump_db -- finco.db 2026-10-22
+//!     cargo run -p finco-core --example dump_db -- finco.db --json > app/public/dev-data.json
+//!
+//! `--json` writes all of them in the app's format, for the browser preview
+//! (real data: the file is git-ignored).
 
 fn main() -> anyhow::Result<()> {
     let mut args = std::env::args().skip(1);
     let path = args.next().expect("usage: dump_db <finco.db> [date prefix]");
     let prefix = args.next().unwrap_or_default();
     let store = finco_core::Store::open(std::path::Path::new(&path))?;
+    if prefix == "--json" {
+        println!("{}", serde_json::to_string(&store.transactions()?)?);
+        return Ok(());
+    }
     for t in store.transactions()? {
         let t = &t.txn;
         let at = t.occurred_at.to_rfc3339();

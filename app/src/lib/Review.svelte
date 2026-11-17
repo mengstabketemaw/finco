@@ -1,62 +1,57 @@
 <script lang="ts">
-  // "What was this?": pick a payment from the list, then say what it was.
-  // Sorted biggest first (a few answers explain most of the money) or
-  // newest first (recent ones are easiest to remember).
-  import CategoryGrid from './CategoryGrid.svelte'
+  // "What was this?": the list of payments to tag. Tap one to open it, or
+  // tick several and tag them together; the modal does the tagging.
+  import ReviewModal from './ReviewModal.svelte'
   import type { Txn } from './api'
-  import { SOURCES, SPEND_CATEGORIES, birr, dayLabel, day, recipientKey, subtitle, title } from './money'
-  import { categorize, data, ui } from './store.svelte'
+  import { birr, dayLabel, day, needsTag, sameRecipient, subtitle, title } from './money'
+  import { data, ui } from './store.svelte'
 
-  let remember = $state(true)
   let sort = $state<'amount' | 'date'>('amount')
-  let selected = $state<string | null>(null)
+  let ticked = $state<string[]>([])
+  /** Payments open in the modal. */
+  let editing = $state<string[] | null>(null)
   /** How many rows to show; grows with "Show more". */
-  let limit = $state(40)
+  let limit = $state(50)
 
-  const untagged = $derived(data.txns.filter((t) => t.flow === 'spend' && !t.category && t.counted > 0))
+  const untagged = $derived(data.txns.filter((t) => needsTag(t)))
   const unknown = $derived(data.txns.filter((t) => t.flow === 'spend' && t.category === 'unknown'))
+  const pool = $derived(ui.reviewUnknown ? unknown : untagged)
   const queue = $derived(
-    [...(ui.reviewUnknown ? unknown : untagged)].sort((a, b) =>
-      sort === 'amount' ? b.amount - a.amount : b.occurred_at.localeCompare(a.occurred_at),
-    ),
+    [...pool].sort((a, b) => (sort === 'amount' ? b.amount - a.amount : b.occurred_at.localeCompare(a.occurred_at))),
   )
   const total = $derived(queue.reduce((s, t) => s + t.amount, 0))
-  /** Unknown is a category of its own, so it isn't offered as an answer here. */
-  const choices = SPEND_CATEGORIES.filter((c) => c.id !== 'unknown')
 
-  /** How often you've paid each recipient, all time: names you pay often are easier to place. */
-  const timesPaid = $derived.by(() => {
+  /**
+   * How many payments in this list go to the same recipient (or person),
+   * counting itself: exactly what the modal's "Tag all … like it" offers, plus one.
+   */
+  const likeIt = $derived.by(() => {
     const m = new Map<string, number>()
-    for (const t of data.txns) {
-      if (t.flow !== 'spend') continue
-      const k = recipientKey(t)
-      if (k) m.set(k, (m.get(k) ?? 0) + 1)
-    }
+    for (const t of pool) m.set(t.id, pool.filter((u) => sameRecipient(t, u)).length)
     return m
   })
-  const times = (t: Txn) => {
-    const k = recipientKey(t)
-    return k ? (timesPaid.get(k) ?? 1) : 1
-  }
-  /** Other payments here to the same recipient, tagged along when remembering. */
-  const alike = (t: Txn) => {
-    const k = recipientKey(t)
-    return k ? queue.filter((o) => o.id !== t.id && recipientKey(o) === k).length : 0
+  const times = (t: Txn) => likeIt.get(t.id) ?? 1
+
+  // Drop ticks for payments that left the list (tagged, or on another tab).
+  $effect(() => {
+    const ids = new Set(queue.map((t) => t.id))
+    if (ticked.some((id) => !ids.has(id))) ticked = ticked.filter((id) => ids.has(id))
+  })
+
+  function tick(id: string) {
+    ticked = ticked.includes(id) ? ticked.filter((x) => x !== id) : [...ticked, id]
   }
 
-  /** Answer, then open the next one in the list. */
-  async function answer(t: Txn, category: string, rememberIt: boolean) {
-    const i = queue.findIndex((x) => x.id === t.id)
-    await categorize(t, category, rememberIt)
-    const next = queue.filter((x) => x.id !== t.id)[i] ?? queue[queue.length - 1]
-    selected = next && next.id !== t.id ? next.id : null
-    remember = true
+  function switchTab(unknownTab: boolean) {
+    ui.reviewUnknown = unknownTab
+    ticked = []
   }
 
-  function toggle(t: Txn) {
-    selected = selected === t.id ? null : t.id
-    remember = true
+  function closed(saved: boolean) {
+    if (saved) ticked = []
+    editing = null
   }
+  const tickedTotal = $derived(queue.filter((t) => ticked.includes(t.id)).reduce((s, t) => s + t.amount, 0))
 </script>
 
 <div class="head">
@@ -68,8 +63,8 @@
 
 <div class="bar">
   <div class="tabs" role="group" aria-label="Which payments">
-    <button class="chip" class:active={!ui.reviewUnknown} onclick={() => ((ui.reviewUnknown = false), (selected = null))}>Untagged ({untagged.length})</button>
-    <button class="chip" class:active={ui.reviewUnknown} onclick={() => ((ui.reviewUnknown = true), (selected = null))}>❔ Unknown ({unknown.length})</button>
+    <button class="chip" class:active={!ui.reviewUnknown} onclick={() => switchTab(false)}>Untagged ({untagged.length})</button>
+    <button class="chip" class:active={ui.reviewUnknown} onclick={() => switchTab(true)}>❔ Unknown ({unknown.length})</button>
   </div>
   <div class="toggle" role="group" aria-label="Sort">
     <button class:active={sort === 'amount'} onclick={() => (sort = 'amount')}>Biggest</button>
@@ -86,50 +81,45 @@
     {:else}
       <p class="done" aria-hidden="true">✓</p>
       <p>Everything is tagged.</p>
-      {#if unknown.length}<button onclick={() => (ui.reviewUnknown = true)}>Look at the {unknown.length} marked Unknown</button>{/if}
+      {#if unknown.length}<button onclick={() => switchTab(true)}>Look at the {unknown.length} marked Unknown</button>{/if}
     {/if}
   </div>
 {:else}
-  <p class="hint small muted">Tap a payment, then pick what it was.</p>
+  <p class="hint small muted">Tap a payment to tag it, or tick several to tag them together.</p>
   <ul class="list card">
     {#each queue.slice(0, limit) as t (t.id)}
-      {@const open = selected === t.id}
       {@const n = times(t)}
-      <li class:open>
-        <button class="item" onclick={() => toggle(t)} aria-expanded={open}>
+      {@const on = ticked.includes(t.id)}
+      <li class:on>
+        <label class="check" aria-label="Select {title(t)}, {birr(t.amount)}">
+          <input type="checkbox" checked={on} onchange={() => tick(t.id)} />
+        </label>
+        <button class="item" onclick={() => (editing = [t.id])}>
           <span class="who">
-            <span class="name">{title(t)}{#if n > 1}<span class="times" title="You paid them {n} times">×{n}</span>{/if}</span>
-            <span class="sub muted">{dayLabel(day(t))} · {subtitle(t, data.settings.own_numbers)}</span>
+            <span class="name">{title(t)}{#if n > 1}<span class="times" title="{n} untagged payments like this">×{n}</span>{/if}</span>
+            <span class="sub muted">{dayLabel(day(t))} · {subtitle(t, data.settings.own_numbers)}{#if t.note} · “{t.note}”{/if}</span>
           </span>
           <span class="amt">{birr(t.amount)}</span>
         </button>
-        {#if open}
-          <div class="panel">
-            {#if t.description && t.kind === 'payment'}<p class="muted small">{t.description}</p>{/if}
-            <CategoryGrid categories={choices} onpick={(id) => answer(t, id, remember && recipientKey(t) !== null)} />
-            <div class="row actions">
-              {#if recipientKey(t)}
-                {@const more = alike(t)}
-                <label class="row small">
-                  <input type="checkbox" bind:checked={remember} />
-                  Always for {title(t)}{#if more}&nbsp;<span class="muted">(+{more} more here)</span>{/if}
-                </label>
-              {:else}
-                <span class="muted small">{SOURCES[t.source]} doesn't say who this went to, so it can't be remembered.</span>
-              {/if}
-              <span class="spacer"></span>
-              {#if !ui.reviewUnknown}
-                <button class="ghost" onclick={() => answer(t, 'unknown', false)} title="Files it under Unknown, to look at later">Don't know</button>
-              {/if}
-            </div>
-          </div>
-        {/if}
       </li>
     {/each}
   </ul>
   {#if queue.length > limit}
-    <button class="ghost more" onclick={() => (limit += 40)}>Show more ({queue.length - limit} left)</button>
+    <button class="ghost more" onclick={() => (limit += 50)}>Show more ({queue.length - limit} left)</button>
   {/if}
+{/if}
+
+{#if ticked.length}
+  <div class="selection">
+    <span><strong>{ticked.length} selected</strong> <span class="muted small">· ETB {birr(tickedTotal, true)}</span></span>
+    <span class="spacer"></span>
+    <button class="ghost" onclick={() => (ticked = [])}>Clear</button>
+    <button class="primary" onclick={() => (editing = [...ticked])}>Tag {ticked.length}</button>
+  </div>
+{/if}
+
+{#if editing}
+  <ReviewModal ids={editing} {pool} onclose={closed} />
 {/if}
 
 <style>
@@ -151,8 +141,7 @@
     gap: 0.35rem;
     flex: 1;
   }
-  .tabs .chip,
-  .actions button {
+  .tabs .chip {
     white-space: nowrap;
   }
   .toggle {
@@ -178,25 +167,45 @@
   .list {
     list-style: none;
     margin: 0;
-    padding: 0.15rem 0.6rem;
+    padding: 0.15rem 0.4rem;
     max-width: 720px;
+  }
+  li {
+    display: flex;
+    align-items: center;
   }
   li + li {
     border-top: 1px solid var(--surface-2);
   }
+  li.on {
+    background: var(--accent-bg);
+  }
+  .check {
+    display: grid;
+    place-items: center;
+    align-self: stretch;
+    padding: 0 0.45rem;
+    cursor: pointer;
+  }
+  .check input {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--accent);
+  }
   .item {
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    width: 100%;
     border: none;
     border-radius: 0;
     background: transparent;
-    padding: 0.6rem 0.2rem;
+    padding: 0.6rem 0.3rem 0.6rem 0.1rem;
     text-align: left;
   }
-  li.open .item {
-    font-weight: 600;
+  .item:hover:not(:disabled) {
+    background: transparent;
   }
   .who {
     flex: 1;
@@ -212,7 +221,6 @@
   }
   .sub {
     font-size: 0.8rem;
-    font-weight: 400;
   }
   .times {
     display: inline-block;
@@ -229,18 +237,6 @@
     font-weight: 700;
     white-space: nowrap;
   }
-  .panel {
-    padding: 0.2rem 0 0.8rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-  }
-  .panel p {
-    margin: 0;
-  }
-  .actions {
-    flex-wrap: nowrap;
-  }
   .more {
     margin-top: 0.5rem;
     color: var(--accent);
@@ -249,5 +245,26 @@
     font-size: 2rem;
     color: var(--in);
     margin: 0;
+  }
+  /* Sits above the bottom tab bar on phones. */
+  .selection {
+    position: sticky;
+    bottom: 0.75rem;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 720px;
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.15);
+  }
+  @media (max-width: 560px) {
+    .selection {
+      bottom: 4.6rem;
+    }
   }
 </style>

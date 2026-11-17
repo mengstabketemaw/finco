@@ -5,7 +5,7 @@
   // - lent money: how much is still owed, with Write off
   // - a split bill: how much came back
   import { api, type Suggestion, type Txn } from './api'
-  import { birr, dayLabel, title } from './money'
+  import { birr, dayLabel, time, title, toSantim } from './money'
   import { categorize, data, reload, toast, ui } from './store.svelte'
 
   let { t }: { t: Txn } = $props()
@@ -13,6 +13,7 @@
   let suggestions = $state<Suggestion[]>([])
   let picked = $state<string[]>([])
   let showAll = $state(false)
+  let find = $state('')
 
   const linked = $derived(t.settles.map((id) => data.txns.find((x) => x.id === id)).filter((x): x is Txn => !!x))
   const repaidBy = $derived(data.txns.filter((x) => x.settles.includes(t.id)))
@@ -23,11 +24,34 @@
     const id = t.id
     picked = []
     showAll = false
+    find = ''
     suggestions = []
     if (canSettle) api.suggest(id).then((s) => (suggestions = s))
   })
 
-  const shown = $derived(showAll ? suggestions : suggestions.slice(0, 3))
+  /** Good guesses (same person, same amount, marked lent…). */
+  const good = $derived(suggestions.filter((s) => s.score >= 2))
+  const at = (s: Suggestion) => Date.parse(s.txn.occurred_at)
+  /** With no good guess: the payments closest in time, before or after. */
+  const nearest = $derived(
+    [...suggestions].sort((a, b) => Math.abs(at(a) - Date.parse(t.occurred_at)) - Math.abs(at(b) - Date.parse(t.occurred_at))).slice(0, 5),
+  )
+  const findAmount = $derived(/^\s*[\d,]+(\.\d+)?\s*$/.test(find) ? toSantim(find) : null)
+  /** Any payment from the last 60 days (or the week after), by name, note or amount. */
+  const found = $derived.by(() => {
+    const q = find.trim().toLowerCase()
+    if (!q) return []
+    return suggestions
+      .filter((s) =>
+        findAmount !== null
+          ? Math.floor(s.txn.amount / 100) === Math.floor(findAmount / 100)
+          : [title(s.txn), s.txn.counterparty, s.txn.note].some((x) => x?.toLowerCase().includes(q)),
+      )
+      .slice(0, 12)
+  })
+  const base = $derived(find.trim() ? found : good.length ? (showAll ? good : good.slice(0, 3)) : nearest)
+  /** What's ticked stays in view while you search for more. */
+  const shown = $derived([...suggestions.filter((s) => picked.includes(s.txn.id) && !base.includes(s)), ...base])
   const pickedTotal = $derived(suggestions.filter((s) => picked.includes(s.txn.id)).reduce((sum, s) => sum + s.remaining, 0))
 
   async function link(ids: string[]) {
@@ -85,18 +109,21 @@
   <section class="box">
     <strong>{t.flow === 'income' ? 'Paying you back?' : 'Paying back money you borrowed?'}</strong>
     <p class="small muted">Pick what it pays back. It then isn't counted, and {t.flow === 'income' ? 'the payment counts only your share' : 'neither is the loan'}.</p>
+    <input class="find" type="search" bind:value={find} placeholder={t.flow === 'income' ? 'Find a payment: name or amount' : 'Find: name or amount'} />
+    {#if !find.trim() && !good.length}<span class="small muted">Closest in time</span>{/if}
+    {#if find.trim() && !found.length}<span class="small muted">No payment like that from 60 days before to a week after.</span>{/if}
     {#each shown as s (s.txn.id)}
       <label class="pick">
         <input type="checkbox" checked={picked.includes(s.txn.id)} onchange={() => toggle(s.txn.id)} />
         <span class="what">
           {title(s.txn)}{#if s.txn.category === 'lent'} · lent{/if}
-          <span class="muted small">{dayLabel(s.txn.occurred_at)}{s.remaining !== s.txn.amount ? ` · ${birr(s.remaining)} open` : ''}</span>
+          <span class="muted small">{dayLabel(s.txn.occurred_at)} · {time(s.txn)}{s.remaining !== s.txn.amount ? ` · ${birr(s.remaining)} open` : ''}</span>
         </span>
         <span>{birr(s.txn.amount)}</span>
       </label>
     {/each}
-    {#if suggestions.length > 3 && !showAll}
-      <button class="ghost small more" onclick={() => (showAll = true)}>{suggestions.length - 3} more</button>
+    {#if !find.trim() && good.length > 3 && !showAll}
+      <button class="ghost small more" onclick={() => (showAll = true)}>{good.length - 3} more</button>
     {/if}
     <div class="row">
       <button class="primary small" disabled={!picked.length} onclick={() => link(picked)}>
@@ -137,6 +164,9 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
+  }
+  .find {
+    width: 100%;
   }
   .more {
     align-self: flex-start;

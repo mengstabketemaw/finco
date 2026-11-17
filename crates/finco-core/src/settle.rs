@@ -14,23 +14,52 @@
 use std::collections::HashMap;
 
 use chrono::Duration;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::reconcile::{Flow, Txn};
 use crate::store::TxnView;
 
 pub const LENT: &str = "lent";
 pub const BORROWED: &str = "borrowed";
+/// A part of a payment that friends paid back outside the app (cash): it
+/// isn't counted, like a repayment.
+pub const CASH_BACK: &str = "cash_back";
+
+/// A part of a payment with its own category.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Split {
+    /// Santim.
+    pub amount: i64,
+    pub category: String,
+}
+
+/// Paid back in cash, per its split parts.
+fn cash_back(t: &TxnView) -> i64 {
+    t.splits.iter().filter(|p| p.category == CASH_BACK).map(|p| p.amount).sum()
+}
 
 /// How far back a repayment looks for what it might settle.
 const LOOKBACK_DAYS: i64 = 60;
+/// Friends often send their share first and you pay the bill after, so a
+/// payment up to a week later can be settled too.
+const AHEAD_DAYS: i64 = 7;
 
 /// Fill in `repaid` and `counted` on every transaction.
 pub fn apply(txns: &mut [TxnView]) {
+    // A repayment's money is shared out over what it settles, in order,
+    // each taking at most what is still open on it; earlier repayments first.
+    let open: HashMap<&str, i64> = txns.iter().map(|t| (t.txn.id.as_str(), t.txn.amount - cash_back(t))).collect();
+    let mut repayments: Vec<&TxnView> = txns.iter().filter(|t| !t.settles.is_empty()).collect();
+    repayments.sort_by(|a, b| a.txn.occurred_at.cmp(&b.txn.occurred_at));
     let mut repaid: HashMap<String, i64> = HashMap::new();
-    for t in txns.iter() {
-        for id in &t.settles {
-            *repaid.entry(id.clone()).or_default() += t.txn.amount;
+    for r in repayments {
+        let mut left = r.txn.amount;
+        for id in &r.settles {
+            let Some(&cap) = open.get(id.as_str()) else { continue };
+            let got = repaid.entry(id.clone()).or_default();
+            let give = left.min((cap - *got).max(0));
+            *got += give;
+            left -= give;
         }
     }
     for t in txns.iter_mut() {
@@ -39,7 +68,7 @@ pub fn apply(txns: &mut [TxnView]) {
         t.counted = if !t.settles.is_empty() || cat == Some(LENT) || cat == Some(BORROWED) {
             0
         } else if matches!(t.txn.flow, Flow::Spend | Flow::Income) {
-            (t.txn.amount - t.repaid).max(0)
+            (t.txn.amount - t.repaid - cash_back(t)).max(0)
         } else {
             0
         };
@@ -48,7 +77,7 @@ pub fn apply(txns: &mut [TxnView]) {
 
 /// What's still open on a transaction others can settle.
 pub fn remaining(t: &TxnView) -> i64 {
-    (t.txn.amount - t.repaid).max(0)
+    (t.txn.amount - t.repaid - cash_back(t)).max(0)
 }
 
 /// An earlier transaction a repayment might settle.
@@ -85,8 +114,8 @@ pub fn suggest(all: &[TxnView], repay: &TxnView) -> Vec<Suggestion> {
             t.id != r.id
                 && c.settles.is_empty()
                 && !repay.settles.contains(&t.id)
-                && t.occurred_at <= r.occurred_at
                 && r.occurred_at - t.occurred_at <= Duration::days(LOOKBACK_DAYS)
+                && t.occurred_at - r.occurred_at <= Duration::days(AHEAD_DAYS)
                 && remaining(c) > 0
                 && if incoming {
                     t.flow == Flow::Spend && !matches!(t.kind, crate::Kind::Fee | crate::Kind::Package | crate::Kind::Airtime)
@@ -111,15 +140,15 @@ pub fn suggest(all: &[TxnView], repay: &TxnView) -> Vec<Suggestion> {
             } else if open > r.amount {
                 score += 1;
             }
-            if r.occurred_at - t.occurred_at <= Duration::days(3) {
+            if (r.occurred_at - t.occurred_at).num_days().abs() <= 3 {
                 score += 1;
             }
             let likely = (person && open >= r.amount) || (marked && open == r.amount);
             Suggestion { txn: c.clone(), remaining: open, score, likely }
         })
-        .filter(|s| s.score >= 2)
         .collect();
+    // Everything that could be settled, best guesses first: the app shows
+    // the good ones (score 2+) and lets you search the rest.
     out.sort_by(|a, b| b.score.cmp(&a.score).then(b.txn.txn.occurred_at.cmp(&a.txn.txn.occurred_at)));
-    out.truncate(8);
     out
 }

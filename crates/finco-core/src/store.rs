@@ -27,7 +27,7 @@ use serde_json::{json, Value};
 
 use crate::parse::{Kind, Outcome, Parsed, Parser, Sms};
 use crate::reconcile::{reconcile, txn_id, Flow, Txn};
-use crate::settle::{self, Suggestion};
+use crate::settle::{self, Split, Suggestion};
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS messages (
@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS txn_meta (
     category    TEXT,                  -- NULL: automatic
     note        TEXT,
     settles     TEXT,                  -- JSON list of txn ids this repays
+    splits      TEXT,                  -- JSON list of {amount, category} parts
     updated_at  INTEGER NOT NULL,
     deleted     INTEGER NOT NULL DEFAULT 0
 );
@@ -111,6 +112,9 @@ pub struct TxnView {
     pub note: Option<String>,
     /// Ids of earlier transactions this one repays.
     pub settles: Vec<String>,
+    /// Parts of a payment with their own category; the rest keeps the
+    /// payment's category. See `settle::CASH_BACK`.
+    pub splits: Vec<Split>,
     /// Paid back so far by later transactions.
     pub repaid: i64,
     /// What counts toward spending or income: the amount minus repayments,
@@ -189,10 +193,15 @@ impl Store {
     fn init(conn: Connection) -> Result<Self> {
         conn.execute_batch(SCHEMA).context("creating schema")?;
         // Added after the first release.
-        let has_settles: bool =
-            conn.query_row("SELECT COUNT(*) FROM pragma_table_info('txn_meta') WHERE name = 'settles'", [], |r| r.get::<_, i64>(0))? > 0;
-        if !has_settles {
-            conn.execute_batch("ALTER TABLE txn_meta ADD COLUMN settles TEXT")?;
+        for col in ["settles", "splits"] {
+            let has: bool = conn.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('txn_meta') WHERE name = ?1",
+                [col],
+                |r| r.get::<_, i64>(0),
+            )? > 0;
+            if !has {
+                conn.execute_batch(&format!("ALTER TABLE txn_meta ADD COLUMN {col} TEXT"))?;
+            }
         }
         conn.execute_batch(&crate::sync::schema_sql()).context("creating sync tables")?;
         Ok(Self { conn })
@@ -321,17 +330,24 @@ impl Store {
         let core = self.core_settings()?;
         let mut txns = reconcile(&self.parsed_messages()?, &core.own_numbers);
 
-        type Meta = (Option<String>, Option<String>, Vec<String>);
+        type Meta = (Option<String>, Option<String>, Vec<String>, Vec<Split>);
         let mut meta: HashMap<String, Meta> = HashMap::new();
         {
-            let mut st = self.conn.prepare("SELECT id, category, note, settles FROM txn_meta WHERE deleted = 0")?;
+            let mut st = self.conn.prepare("SELECT id, category, note, settles, splits FROM txn_meta WHERE deleted = 0")?;
             let rows = st.query_map([], |r| {
-                Ok((r.get::<_, String>(0)?, r.get(1)?, r.get(2)?, r.get::<_, Option<String>>(3)?))
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                ))
             })?;
             for row in rows {
-                let (id, cat, note, settles) = row?;
+                let (id, cat, note, settles, splits) = row?;
                 let settles = settles.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
-                meta.insert(id, (cat, note, settles));
+                let splits = splits.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+                meta.insert(id, (cat, note, settles, splits));
             }
         }
         let rules: HashMap<String, String> = {
@@ -342,13 +358,13 @@ impl Store {
 
         let mut out = Vec::with_capacity(txns.len());
         for mut t in txns.drain(..) {
-            let (manual, note, settles) = meta.remove(&t.id).unwrap_or_default();
+            let (manual, note, settles, splits) = meta.remove(&t.id).unwrap_or_default();
             let learned = (t.flow == Flow::Spend).then(|| recipient_key(&t)).flatten().and_then(|k| rules.get(&k).cloned());
             let by_amount = (t.flow == Flow::Spend && t.kind == Kind::TransferOut)
                 .then(|| core.amount_rules.get(&t.amount).cloned())
                 .flatten();
             t.category = manual.or(learned).or(t.category.take()).or(by_amount);
-            out.push(TxnView { txn: t, note, settles, repaid: 0, counted: 0 });
+            out.push(TxnView { txn: t, note, settles, splits, repaid: 0, counted: 0 });
         }
         settle::apply(&mut out);
         Ok(out)
@@ -389,6 +405,42 @@ impl Store {
             "INSERT INTO txn_meta (id, settles, updated_at) VALUES (?1, ?2, ?3)
              ON CONFLICT(id) DO UPDATE SET settles = excluded.settles, updated_at = excluded.updated_at, deleted = 0",
             params![repay_id, value, stamp()],
+        )?;
+        Ok(())
+    }
+
+    /// Set exactly which repayments (money in) pay back `payment_id`: the
+    /// link is kept on each repayment, so this adds or removes the payment
+    /// in their lists and leaves their other links alone.
+    pub fn set_repaid_by(&self, payment_id: &str, repay_ids: &[String]) -> Result<()> {
+        let all = self.transactions()?;
+        self.with_tx(|s| {
+            for t in &all {
+                let has = t.settles.iter().any(|x| x == payment_id);
+                let want = repay_ids.contains(&t.txn.id);
+                if has == want || t.txn.id == payment_id {
+                    continue;
+                }
+                let mut list = t.settles.clone();
+                if want {
+                    list.push(payment_id.to_string());
+                } else {
+                    list.retain(|x| x != payment_id);
+                }
+                s.link(&t.txn.id, &list)?;
+            }
+            Ok(())
+        })
+    }
+
+    /// Split a payment into parts (empty: one piece again).
+    pub fn set_splits(&self, id: &str, splits: &[Split]) -> Result<()> {
+        let parts: Vec<&Split> = splits.iter().filter(|p| p.amount > 0).collect();
+        let value = (!parts.is_empty()).then(|| serde_json::to_string(&parts)).transpose()?;
+        self.conn.execute(
+            "INSERT INTO txn_meta (id, splits, updated_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(id) DO UPDATE SET splits = excluded.splits, updated_at = excluded.updated_at, deleted = 0",
+            params![id, value, stamp()],
         )?;
         Ok(())
     }
@@ -645,6 +697,78 @@ mod tests {
         assert_eq!(sugg[0].txn.txn.id, loan);
         s.link(&back, &[loan]).unwrap();
         assert!(s.transactions().unwrap().iter().all(|t| t.counted == 0));
+    }
+
+    #[test]
+    fn money_sent_before_the_bill_can_settle_it() {
+        // Two friends send their share, then you pay the whole bill.
+        let (s, p) = store();
+        s.ingest(&p, "127", &received("Kebede Alemu", "500.00", 1), T0).unwrap();
+        s.ingest(&p, "127", &transfer("Abebe Bekele", "1,500.00", 2), T0 + 1).unwrap();
+        let all = s.transactions().unwrap();
+        let back = all.iter().find(|t| t.txn.flow == Flow::Income).unwrap().txn.id.clone();
+        let bill = all.iter().find(|t| t.txn.flow == Flow::Spend).unwrap().txn.id.clone();
+        assert!(s.suggest(&back).unwrap().iter().any(|x| x.txn.txn.id == bill));
+        s.link(&back, &[bill.clone()]).unwrap();
+        let after = s.transactions().unwrap();
+        assert_eq!(after.iter().find(|t| t.txn.id == bill).unwrap().counted, 100000);
+    }
+
+    #[test]
+    fn cash_paid_back_is_split_off_and_not_counted() {
+        // Paid 2,000; a friend sent 200 back; others gave 1,000 in cash.
+        let (s, p) = store();
+        s.ingest(&p, "127", &transfer("Abebe Bekele", "2,000.00", 1), T0).unwrap();
+        s.ingest(&p, "127", &received("Kebede Alemu", "200.00", 2), T0 + 1).unwrap();
+        let all = s.transactions().unwrap();
+        let bill = all.iter().find(|t| t.txn.flow == Flow::Spend).unwrap().txn.id.clone();
+        let back = all.iter().find(|t| t.txn.flow == Flow::Income).unwrap().txn.id.clone();
+        s.link(&back, &[bill.clone()]).unwrap();
+        let parts = [
+            Split { amount: 100000, category: settle::CASH_BACK.into() },
+            Split { amount: 30000, category: "transport".into() },
+        ];
+        s.set_splits(&bill, &parts).unwrap();
+        let t = s.transactions().unwrap().into_iter().find(|t| t.txn.id == bill).unwrap();
+        assert_eq!(t.counted, 80000);
+        assert_eq!(t.splits, parts);
+        s.set_splits(&bill, &[]).unwrap();
+        let t = s.transactions().unwrap().into_iter().find(|t| t.txn.id == bill).unwrap();
+        assert_eq!((t.counted, t.splits.len()), (180000, 0));
+    }
+
+    #[test]
+    fn several_credits_pay_back_one_payment_and_share_out() {
+        let (s, p) = store();
+        s.ingest(&p, "127", &transfer("Abebe Bekele", "2,000.00", 1), T0).unwrap();
+        s.ingest(&p, "127", &received("Kebede Alemu", "500.00", 2), T0 + 1).unwrap();
+        s.ingest(&p, "127", &received("Almaz Tesfaye", "700.00", 3), T0 + 2).unwrap();
+        let all = s.transactions().unwrap();
+        let bill = all.iter().find(|t| t.txn.flow == Flow::Spend).unwrap().txn.id.clone();
+        let ins: Vec<String> = all.iter().filter(|t| t.txn.flow == Flow::Income).map(|t| t.txn.id.clone()).collect();
+        s.set_repaid_by(&bill, &ins).unwrap();
+        let get = |id: &str| s.transactions().unwrap().into_iter().find(|t| t.txn.id == id).unwrap();
+        assert_eq!((get(&bill).repaid, get(&bill).counted), (120000, 80000));
+        assert!(ins.iter().all(|i| get(i).counted == 0));
+        // Unticking one leaves the other linked.
+        s.set_repaid_by(&bill, &ins[..1]).unwrap();
+        assert_eq!(get(&bill).repaid, get(&ins[0]).txn.amount);
+        assert!(get(&ins[1]).settles.is_empty());
+    }
+
+    #[test]
+    fn one_credit_over_two_payments_is_shared_not_counted_twice() {
+        let (s, p) = store();
+        s.ingest(&p, "127", &transfer("Abebe Bekele", "300.00", 1), T0).unwrap();
+        s.ingest(&p, "127", &transfer("Abebe Bekele", "400.00", 2), T0 + 1).unwrap();
+        s.ingest(&p, "127", &received("Kebede Alemu", "500.00", 3), T0 + 2).unwrap();
+        let all = s.transactions().unwrap();
+        let (a, b) = (view(&all, 30000).txn.id.clone(), view(&all, 40000).txn.id.clone());
+        let back = view(&all, 50000).txn.id.clone();
+        s.link(&back, &[a.clone(), b.clone()]).unwrap();
+        let all = s.transactions().unwrap();
+        assert_eq!(view(&all, 30000).counted, 0);
+        assert_eq!(view(&all, 40000).counted, 20000);
     }
 
     #[test]

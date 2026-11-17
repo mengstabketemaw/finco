@@ -2,7 +2,7 @@
   import PeriodBar from './PeriodBar.svelte'
   import TxnRow from './TxnRow.svelte'
   import type { Flow, Txn } from './api'
-  import { birr, day, dayLabel, title, toSantim } from './money'
+  import { birr, day, dayLabel, needsTag, title, toSantim } from './money'
   import { inPeriod, periods } from './budget'
   import { data, ui } from './store.svelte'
 
@@ -27,6 +27,8 @@
 
   /** A date range searches every period, not just the one picked above. */
   const ranged = $derived(from !== '' || to !== '')
+  /** Typing a search looks through all dates (notes on old payments too). */
+  const searchAll = $derived(!ranged && query.trim() !== '')
   const minS = $derived(toSantim(min))
   const maxS = $derived(toSantim(max))
   const extra = $derived([ranged, minS !== null, maxS !== null].filter(Boolean).length)
@@ -38,7 +40,7 @@
       case 'all':
         return true
       case 'untagged':
-        return t.flow === 'spend' && !t.category && t.counted > 0
+        return needsTag(t)
       case 'unknown':
         return t.category === 'unknown'
       default:
@@ -68,7 +70,7 @@
   const list = $derived.by(() => {
     const p = all[Math.min(ui.period, all.length - 1)]
     return data.txns
-      .filter((t) => (ranged ? inRange(t) : inPeriod(t, p)) && matches(t))
+      .filter((t) => (ranged ? inRange(t) : searchAll || inPeriod(t, p)) && matches(t))
       .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
   })
   const days = $derived.by(() => {
@@ -135,7 +137,7 @@
       received ? `received ${birr(received, true)}` : '',
     ]
       .filter(Boolean)
-      .join(' · ')}
+      .join(' · ')}{searchAll ? ' · all dates' : ''}
   </p>
 {/if}
 

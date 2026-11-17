@@ -26,7 +26,7 @@ pub const TABLES: &[TableSpec] = &[
     // Parsed bank and wallet messages (never the raw text).
     TableSpec { name: "messages", pk: "id", cols: &["id", "received_at", "parsed", "updated_at", "deleted"] },
     // Categories and notes set by hand, per transaction.
-    TableSpec { name: "txn_meta", pk: "id", cols: &["id", "category", "note", "settles", "updated_at", "deleted"] },
+    TableSpec { name: "txn_meta", pk: "id", cols: &["id", "category", "note", "settles", "splits", "updated_at", "deleted"] },
     // "Always use this for <recipient>".
     TableSpec { name: "recipient_rules", pk: "key", cols: &["key", "category", "updated_at", "deleted"] },
     TableSpec { name: "settings", pk: "key", cols: &["key", "value", "updated_at", "deleted"] },

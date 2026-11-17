@@ -1,15 +1,15 @@
 <script lang="ts">
   import type { Txn } from './api'
-  import { birr, emojiFor, subtitle, title } from './money'
+  import { birr, emojiFor, needsTag, subtitle, title } from './money'
   import { data, ui } from './store.svelte'
 
   let { t }: { t: Txn } = $props()
 
   const sign = $derived(t.flow === 'income' ? '+' : t.flow === 'spend' ? '−' : '')
-  const untagged = $derived(t.flow === 'spend' && !t.category && t.counted > 0)
+  const untagged = $derived(needsTag(t))
   /** Money that comes back or goes out for someone else: shown, not counted. */
   const parked = $derived(t.settles.length > 0 || t.category === 'lent' || t.category === 'borrowed')
-  const share = $derived((t.flow === 'spend' || t.flow === 'income') && !parked && t.repaid > 0)
+  const share = $derived((t.flow === 'spend' || t.flow === 'income') && !parked && t.counted < t.amount)
 </script>
 
 <button class="row-btn" onclick={() => (ui.open = t.id)}>

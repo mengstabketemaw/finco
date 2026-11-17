@@ -6,7 +6,7 @@
 // months. Weekly limits run Monday to Sunday regardless of the salary.
 
 import type { Bill, Plans, Txn } from './api'
-import { birr, category, dayLabel } from './money'
+import { birr, category, dayLabel, pieces } from './money'
 
 const DAY = 86_400_000
 /** Messages are in Addis Ababa time, UTC+3 all year. */
@@ -127,11 +127,17 @@ export function totals(list: Txn[]): Totals {
     if (t.flow === 'income') income += t.counted
     if (t.flow !== 'spend' || t.counted === 0) continue
     spent += t.counted
-    if (t.kind === 'fee') fees += t.counted
-    else if (t.category) add(t.category, t.counted)
-    else {
-      untagged.count++
-      untagged.amount += t.counted
+    if (t.kind === 'fee') {
+      fees += t.counted
+      continue
+    }
+    // A split payment counts each part under its own category.
+    for (const part of pieces(t)) {
+      if (part.category) add(part.category, part.amount)
+      else {
+        untagged.count++
+        untagged.amount += part.amount
+      }
     }
   }
   if (fees) add('fees', fees)
@@ -153,7 +159,11 @@ export interface BillState {
 export function billStates(list: Txn[], p: Period, plans: Plans): BillState[] {
   const manual = plans.bills_paid[p.key] ?? []
   return plans.bills.map((bill) => {
-    const paidAmount = list.filter((t) => t.flow === 'spend' && t.category === bill.category).reduce((s, t) => s + t.counted, 0)
+    const paidAmount = list
+      .filter((t) => t.flow === 'spend')
+      .flatMap(pieces)
+      .filter((part) => part.category === bill.category)
+      .reduce((s, part) => s + part.amount, 0)
     const byHand = manual.includes(bill.id)
     return { bill, paidAmount, manual: byHand, paid: byHand || paidAmount > 0 }
   })
@@ -193,8 +203,8 @@ export function budget(list: Txn[], p: Period, plans: Plans, now = Date.now()): 
     // Day-to-day pace: spending other than bills and one-offs.
     const fixed = new Set(['big', ...plans.bills.map((b) => b.category)])
     const dayToDay = list
-      .filter((t) => t.flow === 'spend' && !fixed.has(t.category ?? ''))
-      .reduce((sum, t) => sum + t.counted + t.fee, 0)
+      .filter((t) => t.flow === 'spend')
+      .reduce((sum, t) => sum + t.fee + pieces(t).filter((part) => !fixed.has(part.category ?? '')).reduce((s, part) => s + part.amount, 0), 0)
     projectedSaved = income - tot.spent - reserved - Math.round((dayToDay / s.elapsed) * s.left)
   }
   return { income, saveTarget, spent: tot.spent, reserved, left, perDay, saved: income - tot.spent, projectedSaved }
@@ -228,8 +238,10 @@ export function weekRows(txns: Txn[], plans: Plans, start: number, now = Date.no
   const spentBy = new Map<string, number>()
   for (const t of txns) {
     const ms = at(t)
-    if (t.flow !== 'spend' || !t.category || ms < start || ms >= end) continue
-    spentBy.set(t.category, (spentBy.get(t.category) ?? 0) + t.counted)
+    if (t.flow !== 'spend' || ms < start || ms >= end) continue
+    for (const part of pieces(t)) {
+      if (part.category) spentBy.set(part.category, (spentBy.get(part.category) ?? 0) + part.amount)
+    }
   }
   return Object.entries(plans.weekly)
     .filter(([, limit]) => limit > 0)

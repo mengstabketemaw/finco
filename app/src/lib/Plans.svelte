@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api, type Plans } from './api'
   import { isSalary, weekRows, weekStart } from './budget'
-  import { SPEND_CATEGORIES, WEEKLY_CATEGORIES, birr, category, dayLabel, toSantim } from './money'
+  import { spendCategories, weeklyCategories, birr, category, dayLabel, toSantim } from './money'
   import { data, reload, toast } from './store.svelte'
 
   /** A salary lasts about this many weeks. */
@@ -38,7 +38,7 @@
   const lastSalary = $derived(
     data.txns.filter((t) => isSalary(t, salaryAmt)).sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))[0],
   )
-  const thisWeek = $derived(new Map(weekRows(data.txns, { ...data.plans, weekly: Object.fromEntries(WEEKLY_CATEGORIES.map((c) => [c.id, 1])) }, weekStart(Date.now())).map((r) => [r.id, r.spent])))
+  const thisWeek = $derived(new Map(weekRows(data.txns, { ...data.plans, weekly: Object.fromEntries(weeklyCategories().map((c) => [c.id, 1])) }, weekStart(Date.now())).map((r) => [r.id, r.spent])))
 
   async function save() {
     const target = toSantim(goalTarget)
@@ -96,7 +96,7 @@
           <input bind:value={b.name} placeholder="Name" aria-label="Bill name" />
           <input class="num" inputmode="decimal" bind:value={b.amount} placeholder="0" aria-label="{b.name} amount" />
           <select bind:value={b.category} aria-label="{b.name} category">
-            {#each SPEND_CATEGORIES as c (c.id)}<option value={c.id}>{c.emoji} {c.label}</option>{/each}
+            {#each spendCategories() as c (c.id)}<option value={c.id}>{c.emoji} {c.label}</option>{/each}
           </select>
           <button class="ghost" onclick={() => bills.splice(i, 1)} aria-label="Remove {b.name}">✕</button>
         </div>
@@ -122,7 +122,7 @@
       <h3>Weekly limits</h3>
       <p class="small muted">Monday to Sunday. Leave empty for no limit. Bars show this week so far.</p>
       <ul>
-        {#each WEEKLY_CATEGORIES as c (c.id)}
+        {#each weeklyCategories() as c (c.id)}
           {@const limit = amount(weekly[c.id])}
           {@const spent = thisWeek.get(c.id) ?? 0}
           <li>

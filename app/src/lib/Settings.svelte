@@ -1,7 +1,8 @@
 <script lang="ts">
   import { api, inApp } from './api'
   import SyncCard from './SyncCard.svelte'
-  import { SOURCES, SPEND_CATEGORIES, birr, category, toSantim } from './money'
+  import CategoriesCard from './CategoriesCard.svelte'
+  import { SOURCES, birr, category, spendCategories, toSantim } from './money'
   import { data, reload, toast } from './store.svelte'
 
   let numbers = $state('')
@@ -28,7 +29,7 @@
       const santim = toSantim(text)
       if (santim && cat) amount_rules[String(santim)] = cat
     }
-    await api.saveSettings({ ...data.settings, own_numbers, amount_rules })
+    await api.saveSettings({ ...$state.snapshot(data.settings), own_numbers, amount_rules })
     await reload()
     toast('Settings saved')
   }
@@ -46,6 +47,8 @@
     <div><button class="primary" onclick={save}>Save</button></div>
   </section>
 
+  <CategoriesCard />
+
   <section class="card stack">
     <h3>Tag by amount</h3>
     <p class="small muted">An untagged transfer of exactly this amount gets this category, like fixed taxi fares. Tagging one by hand still wins.</p>
@@ -55,7 +58,7 @@
         <input class="amount" inputmode="decimal" bind:value={rule[0]} aria-label="Amount" />
         <span class="small muted">→</span>
         <select bind:value={rule[1]} aria-label="Category">
-          {#each SPEND_CATEGORIES as c (c.id)}<option value={c.id}>{c.emoji} {c.label}</option>{/each}
+          {#each spendCategories() as c (c.id)}<option value={c.id}>{c.emoji} {c.label}</option>{/each}
         </select>
         <button class="ghost" onclick={() => rules.splice(i, 1)} aria-label="Remove {rule[0]} → {category(rule[1]).label}">✕</button>
       </div>

@@ -1,7 +1,8 @@
 <script lang="ts">
+  import CategoryDetail from './CategoryDetail.svelte'
   import DayChart from './DayChart.svelte'
   import PeriodBar from './PeriodBar.svelte'
-  import { STATE_TEXT, balances, billStates, budget, inPeriod, insights, owed, periods, span, totals, weekLabel, weekRows, weekStart } from './budget'
+  import { STATE_TEXT, periodLabel, balances, billStates, budget, inPeriod, insights, owed, periods, span, totals, weekLabel, weekRows, weekStart } from './budget'
   import { SOURCES, birr, category, dayLabel, title } from './money'
   import { data, toggleBillPaid, ui } from './store.svelte'
 
@@ -29,6 +30,8 @@
       .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
   const owedToMe = $derived(open('lent'))
   const iOwe = $derived(open('borrowed'))
+  /** Category open in the detail window. */
+  let detail = $state<string | null>(null)
   const sum = (ts: typeof owedToMe) => ts.reduce((s, t) => s + t.amount - t.repaid, 0)
 </script>
 
@@ -138,13 +141,17 @@
           {#each tot.byCategory as c (c.id)}
             {@const cat = category(c.id)}
             <li>
-              <div class="row">
-                <span aria-hidden="true">{cat.emoji}</span>
-                <span>{cat.label}</span>
-                <span class="spacer"></span>
-                <span class="amt">{birr(c.amount, true)}</span>
-              </div>
-              <div class="track"><div class="fill" style:width="{(c.amount / maxCat) * 100}%"></div></div>
+              <button class="cat" onclick={() => (detail = c.id)} aria-label="{cat.label}: {birr(c.amount, true)}, show payments">
+                <div class="row">
+                  <span aria-hidden="true">{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                  {#if c.id !== 'fees'}<span class="muted small">{c.count}</span>{/if}
+                  <span class="spacer"></span>
+                  <span class="amt">{birr(c.amount, true)}</span>
+                  <span class="muted" aria-hidden="true">›</span>
+                </div>
+                <div class="track"><div class="fill" style:width="{(c.amount / maxCat) * 100}%"></div></div>
+              </button>
             </li>
           {/each}
         </ul>
@@ -250,6 +257,10 @@
   </div>
 </div>
 
+{#if detail}
+  <CategoryDetail id={detail} {list} period={periodLabel(p)} onclose={() => (detail = null)} />
+{/if}
+
 <style>
   .head {
     display: flex;
@@ -340,6 +351,18 @@
     list-style: none;
     margin: 0;
     padding: 0;
+  }
+  .cat {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    padding: 0.2rem 0.25rem;
+    border-radius: 6px;
+  }
+  .cat:hover:not(:disabled) {
+    background: var(--surface-2);
   }
   .bars {
     display: flex;

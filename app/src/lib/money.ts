@@ -1,4 +1,5 @@
 import type { Kind, Txn } from './api'
+import { cats, type Category } from './categories.svelte'
 
 // ── Formatting ──────────────────────────────────────────────────────────────
 
@@ -94,61 +95,83 @@ export function recipientKey(t: Txn): string | null {
   return null
 }
 
-// ── Categories ──────────────────────────────────────────────────────────────
-
-export interface Category {
-  id: string
-  label: string
-  emoji: string
+/**
+ * A person's full name ("mahlet kebede tesfaye"), titles dropped: the same
+ * person paid from telebirr, CBE and Zemen has a different key in each but one name.
+ */
+export function personName(t: Txn): string | null {
+  const n = (t.counterparty?.trim().toLowerCase() ?? '').replace(/^(miss|mrs?|ms|dr)\.? /, '')
+  return /^[a-z]+( [a-z]+){1,3}$/.test(n) ? n : null
 }
 
-export const SPEND_CATEGORIES: Category[] = [
-  { id: 'food', label: 'Food', emoji: '🍲' },
-  { id: 'groceries', label: 'Groceries', emoji: '🛒' },
-  { id: 'snacks', label: 'Coffee & snacks', emoji: '☕' },
-  { id: 'transport', label: 'Transport', emoji: '🚕' },
-  { id: 'internet', label: 'Internet & phone', emoji: '📶' },
-  { id: 'rent', label: 'Rent', emoji: '🏠' },
-  { id: 'electricity', label: 'Electricity', emoji: '💡' },
-  { id: 'family', label: 'Family', emoji: '👪' },
-  { id: 'friends', label: 'Friends', emoji: '🤝' },
-  { id: 'shopping', label: 'Shopping', emoji: '🛍️' },
-  { id: 'health', label: 'Health', emoji: '💊' },
-  { id: 'education', label: 'Education', emoji: '📚' },
-  { id: 'fun', label: 'Fun', emoji: '🎉' },
-  { id: 'impulse', label: 'Impulse', emoji: '⚡' },
-  { id: 'big', label: 'Big one-offs', emoji: '💸' },
-  { id: 'lent', label: 'Lent', emoji: '🤲' },
-  { id: 'fees', label: 'Fees', emoji: '🏦' },
-  { id: 'other', label: 'Other', emoji: '•' },
-  { id: 'unknown', label: 'Unknown', emoji: '❔' },
-]
+/** Same recipient, or the same person under another account. */
+export function sameRecipient(a: Txn, b: Txn): boolean {
+  const k = recipientKey(a)
+  if (k !== null && k === recipientKey(b)) return true
+  const n = personName(a)
+  return n !== null && n === personName(b)
+}
+
+// ── Categories ──────────────────────────────────────────────────────────────
+
+export type { Category } from './categories.svelte'
+
+/** Spending categories you can pick (not the removed ones). */
+export const spendCategories = (): Category[] => cats.spend.filter((c) => !c.hidden)
+/** Income categories you can pick. */
+export const incomeCategories = (): Category[] => cats.income.filter((c) => !c.hidden)
 
 /** Categories that get a weekly limit: day-to-day spending, not bills or one-offs. */
-export const WEEKLY_CATEGORIES = SPEND_CATEGORIES.filter(
-  (c) => !['rent', 'electricity', 'big', 'fees', 'lent', 'unknown'].includes(c.id),
-)
+export const weeklyCategories = (): Category[] =>
+  spendCategories().filter((c) => !['rent', 'electricity', 'big', 'fees', 'lent', 'unknown'].includes(c.id))
+
+/** A part of a payment friends paid back in cash: not counted. Only in splits. */
+export const CASH_BACK: Category = { id: 'cash_back', label: 'Paid back in cash', emoji: '💵' }
+
+/** Not a category: a tile that opens the picker of money in that paid a payment back. */
+export const MONEY_BACK: Category = { id: '__money_back', label: 'Money back', emoji: '↩' }
 
 /** Lent money that never came back: spending after all. Set only by "Write off". */
 const WRITTEN_OFF: Category = { id: 'written_off', label: 'Written off', emoji: '🫥' }
-
-export const INCOME_CATEGORIES: Category[] = [
-  { id: 'salary', label: 'Salary', emoji: '💼' },
-  { id: 'family_in', label: 'From family', emoji: '👪' },
-  { id: 'refund', label: 'Refund', emoji: '↩️' },
-  { id: 'borrowed', label: 'Borrowed', emoji: '🫴' },
-  { id: 'other_in', label: 'Other', emoji: '•' },
-]
-
-const ALL = new Map([...SPEND_CATEGORIES, ...INCOME_CATEGORIES, WRITTEN_OFF].map((c) => [c.id, c]))
 
 /** Categories about this one transaction, never remembered for the recipient. */
 export const ONE_OFF = new Set(['lent', 'borrowed', 'written_off', 'unknown'])
 const UNTAGGED: Category = { id: '', label: 'Untagged', emoji: '?' }
 
+const SPECIAL = new Map([WRITTEN_OFF, CASH_BACK, MONEY_BACK].map((c) => [c.id, c]))
+
+/** A category by id, removed ones too; an id no list knows any more shows as itself. */
 export function category(id: string | null): Category {
-  return (id && ALL.get(id)) || UNTAGGED
+  if (!id) return UNTAGGED
+  return cats.spend.find((c) => c.id === id) ?? cats.income.find((c) => c.id === id) ?? SPECIAL.get(id) ?? { id, label: id, emoji: '•' }
 }
+
+/**
+ * Where a payment's counted money went: its split parts (each capped to what
+ * is left, in order), then the rest under the payment's own category (null:
+ * untagged). Parts paid back in cash are already out of `counted`.
+ */
+export function pieces(t: Txn): { category: string | null; amount: number }[] {
+  let left = t.counted
+  const out: { category: string | null; amount: number }[] = []
+  for (const p of t.splits ?? []) {
+    if (p.category === CASH_BACK.id) continue
+    const a = Math.min(p.amount, left)
+    if (a > 0) out.push({ category: p.category, amount: a })
+    left -= a
+  }
+  if (left > 0) out.push({ category: t.category, amount: left })
+  return out
+}
+
+/** What's counted but not covered by split parts: the payment's own category's share. */
+export function rest(t: Txn): number {
+  const parts = (t.splits ?? []).filter((p) => p.category !== CASH_BACK.id).reduce((s, p) => s + p.amount, 0)
+  return Math.max(0, t.counted - parts)
+}
+
+/** A payment with counted money that has no category. */
+export const needsTag = (t: Txn) => t.flow === 'spend' && !t.category && rest(t) > 0
 
 export function emojiFor(t: Txn): string {
   if (t.settles.length) return '↩'

@@ -132,6 +132,16 @@ fn link(repay_id: String, settles: Vec<String>) -> CmdResult<()> {
 }
 
 #[tauri::command]
+fn set_repaid_by(payment_id: String, repay_ids: Vec<String>) -> CmdResult<()> {
+    write(|s| s.set_repaid_by(&payment_id, &repay_ids))
+}
+
+#[tauri::command]
+fn set_splits(id: String, splits: Vec<finco_core::settle::Split>) -> CmdResult<()> {
+    write(|s| s.set_splits(&id, &splits))
+}
+
+#[tauri::command]
 fn suggest(repay_id: String) -> CmdResult<Vec<finco_core::settle::Suggestion>> {
     cmd(|s| s.suggest(&repay_id))
 }
@@ -254,6 +264,8 @@ pub fn run() {
             set_note,
             link,
             suggest,
+            set_splits,
+            set_repaid_by,
             get_plans,
             save_plans,
             get_settings,

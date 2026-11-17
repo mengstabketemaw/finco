@@ -8,6 +8,7 @@
   import Icon from './lib/Icon.svelte'
   import { listen } from '@tauri-apps/api/event'
   import { inApp } from './lib/api'
+  import { needsTag } from './lib/money'
   import { data, reload, ui, type Tab } from './lib/store.svelte'
 
   const tabs: [Tab, string][] = [
@@ -25,7 +26,7 @@
     history.replaceState(null, '', `#${ui.tab}`)
   })
 
-  const toReview = $derived(data.txns.filter((t) => t.flow === 'spend' && !t.category && t.counted > 0).length)
+  const toReview = $derived(data.txns.filter((t) => needsTag(t)).length)
 
   $effect(() => {
     reload()
@@ -167,8 +168,10 @@
     main {
       padding: 0.75rem 0.75rem 5rem;
     }
+    /* At the top: the bottom has the tab bar and Review's selection bar. */
     .toast {
-      bottom: 5rem;
+      bottom: auto;
+      top: 0.75rem;
     }
   }
 </style>

@@ -1,20 +1,30 @@
 <script lang="ts">
-  import CategoryGrid from './CategoryGrid.svelte'
+  import CategorySelect from './CategorySelect.svelte'
   import Settle from './Settle.svelte'
+  import SplitEditor from './SplitEditor.svelte'
+  import CreditPicker from './CreditPicker.svelte'
   import { api } from './api'
-  import { INCOME_CATEGORIES, SOURCES, SPEND_CATEGORIES, birr, category, dayLabel, day, recipientKey, time, title } from './money'
+  import { SOURCES, birr, incomeCategories, spendCategories, dayLabel, day, recipientKey, time, title } from './money'
   import { categorize, data, reload, ui } from './store.svelte'
 
   const t = $derived(data.txns.find((t) => t.id === ui.open))
   const pair = $derived(t?.pair_id ? data.txns.find((p) => p.id === t.pair_id) : undefined)
   let remember = $state(true)
   let note = $state('')
+  /** The "Money back" picker is open. */
+  let picking = $state(false)
 
   $effect(() => {
     note = t?.note ?? ''
   })
+  // Another transaction opened: the picker belongs to the old one.
+  $effect(() => {
+    void ui.open
+    picking = false
+  })
 
   function close() {
+    picking = false
     ui.open = null
   }
 
@@ -31,7 +41,7 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && close()} />
+<svelte:window onkeydown={(e) => e.key === 'Escape' && (picking ? (picking = false) : close())} />
 
 {#if t}
   <div class="backdrop" onclick={close} role="presentation"></div>
@@ -54,15 +64,22 @@
 
     <!-- A repayment has no category of its own: it just cancels out. -->
     {#if (t.flow === 'spend' || t.flow === 'income') && t.settles.length === 0}
-      <h3>Category {#if t.category}<span class="muted small">· {category(t.category).label}</span>{/if}</h3>
-      <CategoryGrid
-        categories={t.flow === 'spend' ? SPEND_CATEGORIES : INCOME_CATEGORIES}
-        selected={t.category}
-        onpick={(id) => categorize(t, id, remember && t.flow === 'spend' && recipientKey(t) !== null)}
+      <h3>Category</h3>
+      <CategorySelect
+        kind={t.flow === 'spend' ? 'spend' : 'income'}
+        categories={t.flow === 'spend' ? spendCategories() : incomeCategories()}
+        value={t.category}
+        none="Untagged"
+        onchange={(id) => categorize(t, id, remember && t.flow === 'spend' && recipientKey(t) !== null && id !== null)}
+        actions={t.flow === 'spend' ? [{ id: 'money_back', label: '↩ Money back…', run: () => (picking = true) }] : []}
       />
       {#if t.flow === 'spend' && recipientKey(t)}
         <label class="row small remember"><input type="checkbox" bind:checked={remember} /> Use this for every payment to {title(t)}</label>
       {/if}
+    {/if}
+
+    {#if t.flow === 'spend' && t.kind !== 'fee' && t.settles.length === 0 && !['lent', 'written_off'].includes(t.category ?? '')}
+      <SplitEditor {t} />
     {/if}
 
     <label class="field">
@@ -84,6 +101,9 @@
       {/if}
     </dl>
   </div>
+  {#if picking && t.flow === 'spend'}
+    <CreditPicker {t} onclose={() => (picking = false)} />
+  {/if}
 {/if}
 
 <style>

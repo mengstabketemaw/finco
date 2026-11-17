@@ -39,6 +39,7 @@ create table if not exists public.txn_meta (
   category    text,
   note        text,
   settles     text,
+  splits      text,
   updated_at  bigint  not null,
   deleted     integer not null default 0,
   synced_at   timestamptz not null default clock_timestamp(),
@@ -47,6 +48,8 @@ create table if not exists public.txn_meta (
 
 -- Added later: which earlier transactions a repayment settles.
 alter table public.txn_meta add column if not exists settles text;
+-- Added later: a payment split into parts with their own categories.
+alter table public.txn_meta add column if not exists splits text;
 
 create table if not exists public.recipient_rules (
   user_id     uuid    not null default auth.uid() references auth.users on delete cascade,

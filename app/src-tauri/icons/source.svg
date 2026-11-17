@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a8566"/>
+      <stop offset="1" stop-color="#255843"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- SMS bubble, inside the central safe zone for Android's masks -->
+  <path d="M332 300 h360 a76 76 0 0 1 76 76 v236 a76 76 0 0 1 -76 76 h-188 l-112 88 v-88 h-60 a76 76 0 0 1 -76 -76 v-236 a76 76 0 0 1 76 -76 z" fill="#f7f3ea"/>
+  <!-- birr coin -->
+  <circle cx="512" cy="494" r="134" fill="#e0a43a"/>
+  <circle cx="512" cy="494" r="108" fill="none" stroke="#f3c86e" stroke-width="12"/>
+  <text x="512" y="494" dy="0.36em" text-anchor="middle" font-family="Noto Sans Ethiopic" font-weight="700" font-size="118" fill="#7a4f10">ብር</text>
+</svg>
