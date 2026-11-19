@@ -98,6 +98,14 @@ fn mentions(counterparty: &Option<String>, source: &str) -> bool {
     names(source).iter().any(|n| c.contains(n))
 }
 
+/// "Zemen Bank", "telebirr": a bank or wallet, not a person who happens to
+/// have one of those words in their name.
+fn names_only_a_bank(counterparty: &str) -> bool {
+    let c = counterparty.to_lowercase();
+    let c = c.trim();
+    c.contains("bank") || ["telebirr", "cbe birr", "cbebirr", "yaya"].contains(&c)
+}
+
 pub fn reconcile(parsed: &[Parsed], own_numbers: &[String]) -> Vec<Txn> {
     let mut txns: Vec<Txn> = parsed.iter().filter(|p| p.kind != Kind::Ignore).map(to_txn).collect();
     txns.sort_by_key(|t| t.occurred_at);
@@ -139,6 +147,21 @@ pub fn reconcile(parsed: &[Parsed], own_numbers: &[String]) -> Vec<Txn> {
             txns[j].pair_id = Some(a);
         } else if own(&txns[i].target_number) && txns[i].kind == Kind::TransferOut {
             txns[i].flow = Flow::Internal;
+        }
+    }
+
+    // A wallet credit "from Zemen Bank" names only the bank, not who sent
+    // it. If you have an account there, it's your own money moving even
+    // when the bank's own message never arrived (they sometimes don't).
+    let banks: std::collections::HashSet<String> = txns.iter().map(|t| t.source.clone()).collect();
+    for t in txns.iter_mut() {
+        if t.kind == Kind::TransferIn
+            && t.flow == Flow::Income
+            && t.pair_id.is_none()
+            && t.counterparty.as_deref().is_some_and(names_only_a_bank)
+            && banks.iter().any(|b| *b != t.source && mentions(&t.counterparty, b))
+        {
+            t.flow = Flow::Internal;
         }
     }
 
@@ -424,6 +447,24 @@ mod tests {
         inn.counterparty = Some("NATIONAL BANK OF ETHIOPIA".into());
         let t = reconcile(&[out, inn], &own());
         assert!(t.iter().all(|t| t.flow == Flow::Internal), "{t:?}");
+    }
+
+    #[test]
+    fn credit_from_your_own_bank_is_internal_when_its_message_is_missing() {
+        // Some earlier Zemen message shows you bank there.
+        let earlier = p("zemen", Kind::Deposit, 100000, "08:00:00");
+        let mut inn = p("telebirr", Kind::TransferIn, 150000, "19:10:27");
+        inn.counterparty = Some("Zemen Bank".into());
+        let t = reconcile(&[earlier.clone(), inn.clone()], &own());
+        assert_eq!(t[1].flow, Flow::Internal, "{t:?}");
+
+        // No Zemen account: someone else's money.
+        assert_eq!(reconcile(&[inn], &own())[0].flow, Flow::Income);
+
+        // A person, not the bank.
+        let mut person = p("telebirr", Kind::TransferIn, 150000, "19:10:27");
+        person.counterparty = Some("Zemenay Tadesse".into());
+        assert_eq!(reconcile(&[earlier, person], &own())[1].flow, Flow::Income);
     }
 
     #[test]
